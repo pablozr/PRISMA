@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Literal, Optional, TypedDict
+from typing import Optional, TypedDict
 
 from pydantic import BaseModel
 
@@ -14,7 +14,7 @@ class ProjectData(TypedDict):
     owner_professor_id: int
     executing_unit_id: Optional[int]
     source_import_batch_id: Optional[int]
-    status: Literal["draft", "published", "archived"]
+    status: str
     is_active: bool
     starts_at: Optional[date]
     ends_at: Optional[date]
@@ -24,24 +24,58 @@ class ProjectData(TypedDict):
     deactivated_at: Optional[datetime]
 
 
-class ProjectCreateRequest(BaseModel):
-    process_code: Optional[str] = None
-    title: str
-    short_description: Optional[str] = None
-    full_description: Optional[str] = None
-    contact_email: str
-    owner_professor_id: int
-    executing_unit_id: Optional[int] = None
-    source_import_batch_id: Optional[int] = None
-    status: Literal["draft", "published", "archived"] = "draft"
-    is_active: bool = True
-    starts_at: Optional[date] = None
-    ends_at: Optional[date] = None
-    published_at: Optional[datetime] = None
-    deactivated_at: Optional[datetime] = None
+class ProjectListQueryRequest(BaseModel):
+    q: Optional[str] = None
+    area_ids: Optional[list[int]] = None
+    unidade_ids: Optional[list[int]] = None
+    curso_ids: Optional[list[int]] = None
+    ordenacao: Optional[str] = None
+    page: int = 1
+    page_size: int = 20
+    somente_habilitados: bool = True
 
 
-class ProjectCreateResponse(TypedDict):
+class ProjectListDataResponse(TypedDict):
+    projetos: list[ProjectData]
+
+
+class ProjectListResponse(TypedDict):
     status: bool
     message: str
-    data: dict[str, ProjectData]
+    data: ProjectListDataResponse
+
+
+class ProjectDetailDataResponse(TypedDict):
+    projeto: ProjectData
+
+
+class ProjectDetailResponse(TypedDict):
+    status: bool
+    message: str
+    data: ProjectDetailDataResponse
+
+
+class ProjectUpdateRequest(BaseModel):
+    titulo: Optional[str] = None
+    descricao: Optional[str] = None
+
+
+class ProjectUpdateResponse(TypedDict):
+    status: bool
+    message: str
+    data: ProjectDetailDataResponse
+
+
+class ProjectStatusUpdateRequest(BaseModel):
+    habilitado: bool
+
+
+class ProjectStatusUpdateDataResponse(TypedDict):
+    projeto_id: int
+    habilitado: bool
+
+
+class ProjectStatusUpdateResponse(TypedDict):
+    status: bool
+    message: str
+    data: dict[str, ProjectStatusUpdateDataResponse]

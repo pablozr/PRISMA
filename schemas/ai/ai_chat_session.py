@@ -1,23 +1,26 @@
 from datetime import datetime
 from typing import Optional, TypedDict
 
-from pydantic import BaseModel
-
 
 class AiChatSessionData(TypedDict):
-    id: int
-    user_id: int
+    session_id: int
     title: Optional[str]
     created_at: datetime
     updated_at: datetime
 
 
-class AiChatSessionCreateRequest(BaseModel):
-    user_id: int
-    title: Optional[str] = None
+class AiSessionMessageData(TypedDict):
+    role: str
+    content: str
+    created_at: datetime
 
 
-class AiChatSessionCreateResponse(TypedDict):
+class AiChatSessionHistoryDataResponse(TypedDict):
+    session: AiChatSessionData
+    messages: list[AiSessionMessageData]
+
+
+class AiChatSessionHistoryResponse(TypedDict):
     status: bool
     message: str
-    data: dict[str, AiChatSessionData]
+    data: AiChatSessionHistoryDataResponse

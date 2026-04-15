@@ -1,17 +1,15 @@
 from datetime import datetime
-from typing import Literal, Optional, TypedDict
-
-from pydantic import BaseModel
+from typing import Optional, TypedDict
 
 
 class ImportBatchData(TypedDict):
     id: int
     reference_year: int
-    reference_term: Literal[1, 2]
+    reference_term: int
     uploaded_by_user_id: int
     source_filename: str
     source_hash: str
-    status: Literal["processing", "success", "partial", "failed"]
+    status: str
     total_rows: int
     imported_rows: int
     rejected_rows: int
@@ -19,20 +17,15 @@ class ImportBatchData(TypedDict):
     finished_at: Optional[datetime]
 
 
-class ImportBatchCreateRequest(BaseModel):
-    reference_year: int
-    reference_term: Literal[1, 2]
-    uploaded_by_user_id: int
-    source_filename: str
-    source_hash: str
-    status: Literal["processing", "success", "partial", "failed"] = "processing"
-    total_rows: int = 0
-    imported_rows: int = 0
-    rejected_rows: int = 0
-    finished_at: Optional[datetime] = None
+class AdminProjectImportCsvDataResponse(TypedDict):
+    import_batch_id: int
+    status: str
+    total_rows: int
+    imported_rows: int
+    rejected_rows: int
 
 
-class ImportBatchCreateResponse(TypedDict):
+class AdminProjectImportCsvResponse(TypedDict):
     status: bool
     message: str
-    data: dict[str, ImportBatchData]
+    data: dict[str, AdminProjectImportCsvDataResponse]

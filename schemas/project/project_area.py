@@ -1,8 +1,6 @@
 from datetime import datetime
 from typing import TypedDict
 
-from pydantic import BaseModel
-
 
 class ProjectAreaData(TypedDict):
     id: int
@@ -11,12 +9,11 @@ class ProjectAreaData(TypedDict):
     created_at: datetime
 
 
-class ProjectAreaCreateRequest(BaseModel):
-    name: str
-    slug: str
+class CatalogProjectAreasDataResponse(TypedDict):
+    areas: list[ProjectAreaData]
 
 
-class ProjectAreaCreateResponse(TypedDict):
+class CatalogProjectAreasResponse(TypedDict):
     status: bool
     message: str
-    data: dict[str, ProjectAreaData]
+    data: CatalogProjectAreasDataResponse
