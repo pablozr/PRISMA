@@ -100,8 +100,8 @@ workers/
 
 | Metodo | Endpoint | Auth | Objetivo |
 |---|---|---|---|
-| POST | `/api/v1/auth/password/send-code` | Publico | Enviar codigo de verificacao para primeiro acesso/reset |
-| POST | `/api/v1/auth/password/validate-code` | Publico | Validar codigo e permitir definicao/atualizacao de senha |
+| POST | `/api/v1/auth/password/send-code` | Publico | Enviar codigo de recuperacao de senha (forget-password) |
+| POST | `/api/v1/auth/password/validate-code` | Publico | Validar codigo e redefinir senha |
 | POST | `/api/v1/auth/login` | Publico | Login local de aluno/admin (`email + senha`) |
 | POST | `/api/v1/auth/refresh` | Publico | Renovar sessao/token usando estado no Redis |
 | POST | `/api/v1/auth/google/login` | Publico | Login Google de professor (allowlist) |
@@ -179,14 +179,13 @@ Filtros padrao de `GET /api/v1/projetos`:
 
 ## 5) Contratos minimos recomendados
 
-## 5.1 Verificacao por codigo (primeiro acesso e reset via Redis)
+## 5.1 Recuperacao de senha por codigo (forget-password via Redis)
 
 `POST /api/v1/auth/password/send-code`
 
 ```json
 {
-  "email": "aluno@unirio.br",
-  "motivo": "first_access"
+  "email": "aluno@unirio.br"
 }
 ```
 
@@ -380,8 +379,8 @@ Legenda:
 | BL-019 | Implementar `POST /auth/logout` | API | P0 | 2 | BL-017 | Sessao/token invalidados |
 | BL-020 | Implementar `GET /auth/me` | API | P0 | 2 | BL-017 | Retorna usuario e roles corretos |
 | BL-021 | Implementar hash de senha (argon2) + rate limiting de login (Redis/Cloudflare) | API | P0 | 3 | BL-017 | Login protegido contra brute force |
-| BL-021A | Implementar `POST /auth/password/send-code` com template existente | API | P0 | 3 | BL-012A, BL-021 | Codigo enviado com TTL e rate limit |
-| BL-021B | Implementar `POST /auth/password/validate-code` com atualizacao de senha | API | P0 | 3 | BL-012A, BL-021A | Codigo validado no Redis e senha atualizada |
+| BL-021A | Implementar `POST /auth/password/send-code` (forget-password) com template existente | API | P0 | 3 | BL-012A, BL-021 | Codigo de reset enviado com TTL e rate limit |
+| BL-021B | Implementar `POST /auth/password/validate-code` para redefinir senha | API | P0 | 3 | BL-012A, BL-021A | Codigo validado no Redis e senha atualizada |
 | BL-021C | Implementar `POST /auth/refresh` com controle em Redis | API | P0 | 2 | BL-012A, BL-017 | Sessao renovada com token valido |
 | BL-022 | Integrar RBAC por dependencia (`student/professor/admin`) | API | P0 | 3 | BL-017, BL-018 | Endpoints bloqueiam papel indevido |
 | BL-023 | Implementar regras de ownership de projeto | API | P0 | 3 | BL-022 | Usuario altera apenas recurso autorizado |
@@ -706,7 +705,7 @@ Pergunta + SQL sugerido + resultado de validacao.
 
 ### 13.2.2 Login aluno/admin
 1. Email precisa existir na base institucional externa com status ativo.
-2. Fluxo de senha usa Redis:
+2. Fluxo de recuperacao de senha (forget-password) usa Redis:
    - `POST /auth/password/send-code`
    - `POST /auth/password/validate-code`
 3. Com senha definida, autentica por login local (`email + senha`).
@@ -1042,41 +1041,7 @@ CREATE INDEX idx_ai_sql_suggestions_user_created
 
 ---
 
-## 13.6 Mermaid ER (completo)
-
-Observacao:
-- o diagrama abaixo mostra apenas entidades locais do PostgreSQL.
-
-```mermaid
-erDiagram
-    USERS ||--o{ IMPORT_BATCHES : uploads
-    USERS ||--o| PROFESSOR_REGISTRY : linked_professor_account
-    ORGANIZATIONAL_UNITS ||--o{ PROFESSOR_REGISTRY : contains
-    ORGANIZATIONAL_UNITS ||--o{ COURSES : contains
-    ORGANIZATIONAL_UNITS ||--o{ PROJECTS : executes
-    PROFESSOR_REGISTRY ||--o{ PROJECTS : owns
-    IMPORT_BATCHES ||--o{ IMPORT_ROW_ERRORS : has
-    IMPORT_BATCHES ||--o{ PROJECT_IMPORT_LINKS : tracks
-    PROJECTS ||--o{ PROJECT_IMPORT_LINKS : appears_in
-    PROJECTS ||--o{ PROJECT_IMAGES : has
-    PROJECTS ||--o{ PROJECT_AREA_LINKS : classified_by
-    PROJECT_AREAS ||--o{ PROJECT_AREA_LINKS : linked
-    PROJECTS ||--o{ PROJECT_COURSE_LINKS : related_to
-    COURSES ||--o{ PROJECT_COURSE_LINKS : linked
-    PROJECTS ||--o{ PROJECT_CHANGE_LOGS : audited
-    USERS ||--o{ PROJECT_CHANGE_LOGS : changed_by
-    USERS ||--o{ EMAIL_DISPATCH_REQUESTS : requested
-    PROJECTS ||--o{ EMAIL_DISPATCH_REQUESTS : target_project
-    USERS ||--o{ AI_CHAT_SESSIONS : owns
-    AI_CHAT_SESSIONS ||--o{ AI_CHAT_MESSAGES : has
-    AI_CHAT_SESSIONS ||--o{ AI_SQL_SUGGESTIONS : generates
-    USERS ||--o{ AI_SQL_SUGGESTIONS : asked_by
-    ORGANIZATIONAL_UNITS ||--o{ ORGANIZATIONAL_UNITS : parent_of
-```
-
----
-
-## 13.7 Politica de retencao e custo (recomendado)
+## 13.6 Politica de retencao e custo (recomendado)
 
 Para evitar crescimento inutil de dados operacionais:
 
