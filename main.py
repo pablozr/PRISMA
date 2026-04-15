@@ -1,0 +1,38 @@
+from contextlib import asynccontextmanager
+from fastapi.openapi.docs import get_swagger_ui_html
+from core.postgresql.postgresql import postgresql
+from fastapi import FastAPI
+# from fastapi.middleware.cors import CORSMiddleware
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Iniciando conexões...")
+    await postgresql.connect()
+    print("✅ Todos os serviços conectados com sucesso!")
+
+    yield
+
+    print("Encerrando conexões...")
+    await postgresql.disconnect()
+    print("✅ Todos os serviços desconectados com sucesso!")
+
+app = FastAPI(lifespan=lifespan, openapi_url="/api/v1/unirio/openapi.json", root_path="/api/v1/unirio")
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["http://localhost:5685", "*"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+
+@app.get("/api/v1/unirio/docs", include_in_schema=False)
+async def custom_docs():
+    return get_swagger_ui_html(
+        openapi_url="/api/v1/unirio/openapi.json",
+        title="Documentação da API - Extensao Unirio",
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5685)
