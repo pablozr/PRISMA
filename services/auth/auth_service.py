@@ -155,6 +155,14 @@ async def google_login(
     redis_client: redis.Redis,
     google_data: UserLoginGoogleRequest,
 ) -> dict:
+    """Realiza o login usando um token do Google. O processo inclui:
+    1. Verificar a validade do token do Google e extrair as informações do usuário.
+    2. Validar o domínio do email do usuário contra o dominio permitido.
+    3. Procurar um usuário existente com o email extraído. Se não existir,
+        criar um novo usuário, verificando primeiro se o email corresponde a um professor registrado,
+        caso pertença a um professor registrado, criar o usuário com base nas informações do registro do professor,
+        caso contrário, criar um usuário do tipo estudante.
+    """
     try:
         google_user = verify_google_token(google_data.credential)
         if not google_user:

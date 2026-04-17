@@ -199,16 +199,13 @@ async def validate_token_wrapper(
 
 
 def is_allowed_domain(email: str, hd: Optional[str] = None) -> bool:
-    email = email.lower()
-    domain = email.split("@")[-1]
+    allowed_domain = ALLOWED_EMAIL_DOMAIN.lower().strip()
+    domain = email.lower().split("@")[-1]
 
-    if hd and hd.lower() not in ALLOWED_EMAIL_DOMAIN:
+    if hd and hd.lower().strip() != allowed_domain:
         return False
 
-    if domain not in ALLOWED_EMAIL_DOMAIN:
-        return False
-
-    return True
+    return domain == allowed_domain
 
 
 def require_minimum_rank(minimum_rank: int):
