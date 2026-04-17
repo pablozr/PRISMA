@@ -27,3 +27,9 @@ class UserStatusUpdateResponse(TypedDict):
     status: bool
     message: str
     data: dict[str, UserStatusUpdateDataResponse]
+
+
+class CreateStudentUserSchema(BaseModel):
+    institutional_email: str
+    full_name: str
+    google_sub: str
