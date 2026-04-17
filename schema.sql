@@ -53,17 +53,6 @@ CREATE TABLE professor_registry (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE student_registry (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  institutional_email CITEXT NOT NULL UNIQUE,
-  full_name TEXT NOT NULL,
-  registration_number TEXT UNIQUE,
-  course_id BIGINT REFERENCES courses(id),
-  user_id BIGINT UNIQUE REFERENCES users(id),
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
 
 CREATE TABLE projects (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
