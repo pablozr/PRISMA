@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import asyncpg
 import jwt
@@ -6,7 +7,7 @@ import redis
 from fastapi import Depends, HTTPException, Request
 from services.cache import cache_service
 
-from core.config.config import settings, COOKIE_AUTH_REFRESH
+from core.config.config import settings, COOKIE_AUTH_REFRESH, ALLOWED_EMAIL_DOMAIN
 from core.config.config import COOKIE_AUTH, COOKIE_AUTH_RESET, ROLE_RANK_BY_NAME
 from core.logger.logger import logger
 from core.postgresql.postgresql import postgresql
@@ -195,6 +196,19 @@ async def validate_token_wrapper(
         redis_client: redis.Redis = Depends(redis_cache.get_redis),
 ) -> dict:
     return await validate_token(request, conn, redis_client)
+
+
+def is_allowed_domain(email: str, hd: Optional[str] = None) -> bool:
+    email = email.lower()
+    domain = email.split("@")[-1]
+
+    if hd and hd.lower() not in ALLOWED_EMAIL_DOMAIN:
+        return False
+
+    if domain not in ALLOWED_EMAIL_DOMAIN:
+        return False
+
+    return True
 
 
 def require_minimum_rank(minimum_rank: int):
