@@ -5,6 +5,7 @@ CREATE TABLE users (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   institutional_email CITEXT NOT NULL UNIQUE,
   full_name TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'student', 'professor')),
   password_hash TEXT,
   google_sub TEXT UNIQUE,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -47,6 +48,18 @@ CREATE TABLE professor_registry (
   unit_id BIGINT REFERENCES organizational_units(id),
   user_id BIGINT UNIQUE REFERENCES users(id),
   source_import_batch_id BIGINT REFERENCES import_batches(id),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE student_registry (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  institutional_email CITEXT NOT NULL UNIQUE,
+  full_name TEXT NOT NULL,
+  registration_number TEXT UNIQUE,
+  course_id BIGINT REFERENCES courses(id),
+  user_id BIGINT UNIQUE REFERENCES users(id),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
