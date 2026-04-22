@@ -1,49 +1,19 @@
 from typing import TypedDict
 
-from pydantic import BaseModel
+from .auth import (
+    ForgetPasswordRequestModel,
+    RefreshTokenRequest,
+    UpdatePasswordRequest,
+    UserLoginGoogleRequest,
+    UserLoginRequest,
+    ValidateCodeRequest,
+)
 
-
-class PasswordSendCodeRequest(BaseModel):
-    email: str
-
-
-class PasswordSendCodeData(TypedDict):
-    email: str
-
-
-class PasswordSendCodeResponse(TypedDict):
-    status: bool
-    message: str
-    data: dict[str, PasswordSendCodeData]
-
-
-class PasswordValidateCodeRequest(BaseModel):
-    email: str
-    codigo: str
-    nova_senha: str
-
-
-class PasswordValidateCodeData(TypedDict):
-    email: str
-
-
-class PasswordValidateCodeResponse(TypedDict):
-    status: bool
-    message: str
-    data: dict[str, PasswordValidateCodeData]
-
-
-class AuthLoginRequest(BaseModel):
-    email: str
-    senha: str
-
-
-class AuthRefreshRequest(BaseModel):
-    refresh_token: str
-
-
-class AuthGoogleLoginRequest(BaseModel):
-    google_id_token: str
+PasswordSendCodeRequest = ForgetPasswordRequestModel
+PasswordValidateCodeRequest = ValidateCodeRequest
+AuthLoginRequest = UserLoginRequest
+AuthRefreshRequest = RefreshTokenRequest
+AuthGoogleLoginRequest = UserLoginGoogleRequest
 
 
 class AuthSessionData(TypedDict):
