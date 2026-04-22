@@ -1,7 +1,7 @@
 from schemas.user import UserGetResponse
 
 
-async def get_one_user(conn, user_id: int) -> UserGetResponse:
+async def get_one_user(conn, user_id: int) -> dict:
     query = """
         SELECT id,
                institutional_email,
