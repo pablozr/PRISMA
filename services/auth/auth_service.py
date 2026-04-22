@@ -2,6 +2,7 @@ import secrets
 from datetime import timedelta
 
 import asyncpg
+import aio_pika
 import redis
 
 from core.config.config import settings
@@ -14,7 +15,13 @@ from repositories.professor.professor_repository import (
     get_active_professor_by_email,
 )
 from repositories.user.user_repository import create_student_user, get_active_user_by_email
-from schemas.auth.auth import UserLoginGoogleRequest, UserLoginRequest
+from schemas.auth.auth import (
+    ForgetPasswordRequestModel,
+    UpdatePasswordRequest,
+    UserLoginGoogleRequest,
+    UserLoginRequest,
+    ValidateCodeRequest,
+)
 from schemas.professor.professor import CreateProfessorSchema
 from schemas.user.user import CreateStudentUserSchema
 from services.cache import cache_service
@@ -234,3 +241,124 @@ async def google_login(
     except Exception as e:
         logger.exception(e)
         return service_response(status=False, message="Erro interno")
+
+
+async def forget_password(
+        conn: asyncpg.Connection,
+        redis_client,
+        channel: aio_pika.abc.AbstractChannel,
+        data: ForgetPasswordRequestModel,
+) -> dict:
+    try:
+        row = await conn.fetchrow(
+            "SELECT id, fullname, email, role FROM users WHERE email = $1", data.email
+        )
+
+        if not row:
+            return {"status": False, "message": "User not found", "data": {}}
+
+        code = generate_temp_code()
+        cache_key = f"{row['id']}:{row['email']}"
+
+        await cache_service.set_by_key(
+            cache_key, RESET_CODE_REDIS_TTL, {"code": code}, redis_client
+        )
+
+        html = RESET_PASSWORD_EMAIL_TEMPLATE.replace("CODE_HERE", code)
+
+        await messaging_service.publish(
+            EMAIL_QUEUE,
+            {
+                "to": data.email,
+                "from": settings.EMAIL_FROM,
+                "subject": "Password reset code",
+                "html": html,
+                "message": "",
+                "base64Attachment": "",
+                "base64AttachmentName": "",
+            },
+            channel,
+        )
+
+        reset_payload = reset_jwt_payload(
+            row["id"],
+            row["email"],
+            row["fullname"],
+            row["role"],
+            can_update=False,
+        )
+        token = create_token(
+            reset_payload, expires_delta=timedelta(seconds=RESET_COOKIE_MAX_AGE)
+        )
+
+        return {
+            "status": True,
+            "message": "Verification code sent",
+            "data": {"access_token": token},
+        }
+    except Exception as e:
+        logger.exception(e)
+        return {"status": False, "message": "Internal server error", "data": {}}
+
+
+async def validate_reset_code(
+        redis_client, user: dict, data: ValidateCodeRequest
+) -> dict:
+    try:
+        cache_key = f"{user['userId']}:{user['email']}"
+        redis_data = await cache_service.get_by_key(cache_key, redis_client)
+
+        if not redis_data or redis_data.get("code") != data.code:
+            return {"status": False, "message": "Invalid or expired code", "data": {}}
+
+        await cache_service.delete_by_key(cache_key, redis_client)
+
+        reset_payload = reset_jwt_payload(
+            user["userId"],
+            user["email"],
+            user["fullname"],
+            user["role"],
+            can_update=True,
+        )
+        token = create_token(
+            reset_payload, expires_delta=timedelta(seconds=RESET_COOKIE_MAX_AGE)
+        )
+
+        return {
+            "status": True,
+            "message": "Code validated",
+            "data": {"access_token": token},
+        }
+    except Exception as e:
+        logger.exception(e)
+        return {"status": False, "message": "Internal server error", "data": {}}
+
+
+async def update_password_after_reset(
+        conn: asyncpg.Connection, user: dict, data: UpdatePasswordRequest
+) -> dict:
+    try:
+        hashed = hash_password(data.password)
+
+        row = await conn.fetchrow(
+            """
+            UPDATE users
+            SET password   = $1,
+                updated_at = NOW()
+            WHERE id = $2 RETURNING id, fullname, email, role, created_at
+            """,
+            hashed,
+            user["userId"],
+        )
+
+        if not row:
+            return {"status": False, "message": "User not found", "data": {}}
+
+        return {
+            "status": True,
+            "message": "Password updated successfully",
+            "data": {"user": user_from_row(row)},
+        }
+    except Exception as e:
+        logger.exception(e)
+        return {"status": False, "message": "Internal server error", "data": {}}
