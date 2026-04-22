@@ -1,11 +1,13 @@
 import secrets
+from datetime import timedelta
 
 import asyncpg
 import redis
 
+from core.config.config import settings
 from core.logger.logger import logger
 from core.security.hashing import verify_password
-from core.security.security import create_token, is_allowed_domain, verify_google_token
+from core.security.security import create_token, is_allowed_domain, verify_google_token, decode_access_token
 from functions.utils.utils import service_response
 from repositories.professor.professor_repository import (
     create_user_professor_registry,
@@ -17,7 +19,7 @@ from schemas.professor.professor import CreateProfessorSchema
 from schemas.user.user import CreateStudentUserSchema
 from services.cache import cache_service
 
-SESSION_TTL_SECONDS = 60 * 24 * 7
+SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
 
 
 def _extract_user_identity(user: dict) -> tuple[int, str, str]:
@@ -43,7 +45,8 @@ async def _create_session_tokens(user: dict, redis_client: redis.Redis) -> tuple
             "role": role,
             "sessionId": session_id,
             "type": "auth",
-        }
+        },
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     refresh_token = create_token(
         {
@@ -53,7 +56,8 @@ async def _create_session_tokens(user: dict, redis_client: redis.Redis) -> tuple
             "sessionId": session_id,
             "jti": refresh_jti,
             "type": "refresh",
-        }
+        },
+        expires_delta=timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES),
     )
 
     await cache_service.set_by_key(
@@ -76,9 +80,9 @@ async def _login_success_response(user: dict, redis_client: redis.Redis) -> dict
 
 
 async def _create_professor_user_from_registry(
-    conn: asyncpg.Connection,
-    email: str,
-    google_sub: str,
+        conn: asyncpg.Connection,
+        email: str,
+        google_sub: str,
 ) -> dict | None:
     professor = await get_active_professor_by_email(conn, email)
     if not professor:
@@ -128,8 +132,7 @@ async def login(conn: asyncpg.Connection, redis_client: redis.Redis, login_data:
                    role
             FROM users
             WHERE institutional_email = $1
-              AND is_active = TRUE
-            LIMIT 1;
+              AND is_active = TRUE LIMIT 1;
             """
 
     try:
@@ -150,10 +153,49 @@ async def login(conn: asyncpg.Connection, redis_client: redis.Redis, login_data:
         return service_response(status=False, message="Erro interno")
 
 
+async def refresh_token(redis_client: redis.Redis, refresh_token: str) -> dict:
+    try:
+        if not refresh_token:
+            return service_response(status=False, message="Refresh token ausente")
+
+        if refresh_token.startswith("Bearer "):
+            refresh_token = refresh_token[7:]
+
+        payload = decode_access_token(refresh_token)
+
+        if payload.get("type") != "refresh":
+            raise ValueError("Invalid token type")
+
+        if not payload.get("userId") or not payload.get("sessionId"):
+            raise ValueError("Invalid token")
+
+        session = await cache_service.get_by_key(
+            f"session:{payload['sessionId']}", redis_client
+        )
+        if not session or session.get("refreshJti") != payload.get("jti"):
+            raise ValueError("Invalid session")
+
+        token_user = {
+            "id": payload.get("userId"),
+            "email": payload.get("email"),
+            "role": payload.get("role"),
+        }
+        new_access_token, new_refresh_token = await _create_session_tokens(token_user, redis_client)
+
+        return service_response(status=True, message="Tokens atualizados com sucesso",
+                                data={"accessToken": new_access_token, "refreshToken": new_refresh_token})
+    except ValueError as e:
+        logger.error(str(e))
+        return service_response(status=False, message="Token inválido")
+    except Exception as e:
+        logger.exception(e)
+        return service_response(status=False, message="Erro interno")
+
+
 async def google_login(
-    conn: asyncpg.Connection,
-    redis_client: redis.Redis,
-    google_data: UserLoginGoogleRequest,
+        conn: asyncpg.Connection,
+        redis_client: redis.Redis,
+        google_data: UserLoginGoogleRequest,
 ) -> dict:
     """Realiza o login usando um token do Google. O processo inclui:
     1. Verificar a validade do token do Google e extrair as informações do usuário.
