@@ -153,6 +153,15 @@ async def login(conn: asyncpg.Connection, redis_client: redis.Redis, login_data:
         return service_response(status=False, message="Erro interno")
 
 
+async def logout(redis_client: redis.Redis, session_id: str | None) -> dict:
+    try:
+        await cache_service.delete_by_key(f"session:{session_id}", redis_client)
+        return service_response(status=True, message="Logout successful")
+    except Exception as e:
+        logger.exception(e)
+        return service_response(status=False, message="Erro interno")
+
+
 async def refresh_token(redis_client: redis.Redis, refresh_token: str) -> dict:
     try:
         if not refresh_token:
