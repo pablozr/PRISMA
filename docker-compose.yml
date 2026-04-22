@@ -30,6 +30,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      postgres-schema:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       rabbitmq:
@@ -59,6 +61,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  postgres-schema:
+    image: postgres:16
+    container_name: siepa-postgres-schema
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_USER: ${DB_USER}
+      DB_NAME: ${DB_NAME}
+      PGPASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./schema.sql:/schema.sql:ro
+    command: >
+      sh -c "if [ \"$(psql -h postgres -U $$DB_USER -d $$DB_NAME -Atqc \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='users';\")\" = \"0\" ]; then psql -h postgres -U $$DB_USER -d $$DB_NAME -v ON_ERROR_STOP=1 -f /schema.sql; else echo 'Schema already exists, skipping.'; fi"
 
   redis:
     image: redis:7-alpine
