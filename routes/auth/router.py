@@ -1,9 +1,10 @@
 import asyncpg
 import redis
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from starlette.responses import JSONResponse
 
 from core.security.rate_limit import LOGIN_RATE_LIMIT_DEPS
+from core.security.security import validate_token_refresh, validate_token_wrapper
 from schemas.auth.auth import UserLoginRequest
 from services.auth.auth_service import login as auth_login, logout as auth_logout, refresh_token as auth_refresh
 
@@ -44,7 +45,7 @@ async def login(conn: asyncpg.Connection, redis_client: redis.Redis, data: UserL
     return resp
 
 
-@router.post("/logout")
+@router.post("/logout", dependencies=[Depends(validate_token_wrapper)])
 async def logout(request: Request, redis_client: redis.Redis):
     session_id = request.cookies.get("session_id")
     if not session_id:
@@ -62,7 +63,7 @@ async def logout(request: Request, redis_client: redis.Redis):
     return resp
 
 
-@router.post("/refresh", dependencies=LOGIN_RATE_LIMIT_DEPS)
+@router.post("/refresh", dependencies=[*LOGIN_RATE_LIMIT_DEPS, Depends(validate_token_refresh)])
 async def refresh_token(request: Request, redis_client: redis.Redis):
     response = await auth_refresh(redis_client, request.state.token)
 
