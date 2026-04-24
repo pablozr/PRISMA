@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 
 from functions.utils.utils import default_response
 from core.postgresql.postgresql import postgresql
-from services.catalogue.catalogue_service import get_areas_tematicas
+from services.catalogue.catalogue_service import get_areas_tematicas, get_centros
 
 router = APIRouter()
 
@@ -14,8 +14,8 @@ async def get_areas_tematicas(conn = Depends(postgresql.get_db), limit: int = 50
 
 
 @router.get("/centros")
-async def get_centros():
-    return default_response(lambda: None, dict_response=True)
+async def get_centros(conn = Depends(postgresql.get_db), limit: int = 50, offset: int = 0):
+    return default_response(get_centros, [conn, limit, offset])
 
 
 @router.get("/unidades")
