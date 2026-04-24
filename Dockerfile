@@ -8,6 +8,6 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY . .
 
-EXPOSE 5685
+EXPOSE ${API_PORT}
 
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${API_PORT:-5685}"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${API_PORT}"]

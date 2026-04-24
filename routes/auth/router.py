@@ -43,13 +43,6 @@ async def login(
     access_token = response["data"].pop("accessToken")
     refresh_token = response["data"].pop("refreshToken")
 
-    session_id = response["data"].pop("sessionId", None)
-    if not session_id:
-        try:
-            session_id = decode_access_token(access_token).get("sessionId")
-        except Exception:
-            session_id = None
-
     resp = JSONResponse(status_code=200, content={"message": response["message"], "data": response["data"]})
     resp.set_cookie(
         key=COOKIE_AUTH,
@@ -70,17 +63,6 @@ async def login(
         path="/",
         max_age=604800,
     )
-
-    if session_id:
-        resp.set_cookie(
-            key="session_id",
-            value=session_id,
-            httponly=True,
-            secure=True,
-            samesite="lax",
-            path="/",
-            max_age=604800,
-        )
 
     return resp
 
