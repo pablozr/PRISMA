@@ -32,7 +32,7 @@ app = FastAPI(lifespan=lifespan, openapi_url="/api/v1/unirio/openapi.json", root
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,4 +52,4 @@ async def custom_docs():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=5685)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
