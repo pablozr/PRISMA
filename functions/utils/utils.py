@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, List, Any
 import inspect
 from starlette.responses import JSONResponse
 from core.logger.logger import logger
@@ -27,9 +27,15 @@ async def default_response(callable_function: Callable, params: list = [], is_cr
         return {"status": False, "message": "Erro interno com o servidor."}
 
 
-def service_response(status: bool, message: str, data: dict = None) -> dict:
-    return {"status": status, "message": message, "data": data or {}}
+def service_response(status: bool, message: str,is_list: bool = None, data: dict | List[Any] = None) -> dict:
+    return {"status": status, "message": message, "data": data or ([] if is_list else {})}
 
 
 def is_async_callable(fn: Callable) -> bool:
     return inspect.iscoroutinefunction(fn)
+
+
+def get_safe_limit_offset(limit: int, offset: int, max_limit: int = 100, max_offset: int = 1000) -> tuple[int, int]:
+    safe_limit = max(1, min(limit, max_limit))
+    safe_offset = max(0, min(offset, max_offset))
+    return safe_limit, safe_offset
