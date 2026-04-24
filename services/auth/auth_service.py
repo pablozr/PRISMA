@@ -99,6 +99,13 @@ async def _create_professor_user_from_registry(
         email: str,
         google_sub: str,
 ) -> dict | None:
+    """
+    Tenta criar um usuário do tipo professor com base em um registro existente na tabela professor_registry.
+     - Se existir um registro ativo na tabela professor_registry com o email fornecido e sem um user_id associado, cria um usuário do tipo
+     professor usando as informações do registro e associa o user_id do novo usuário ao registro.
+     - Se não existir um registro correspondente ou se o registro já tiver um user_id associado, retorna
+     None, indicando que não foi possível criar um usuário do tipo professor com base no registro.
+    """
     professor = await get_active_professor_by_email(conn, email)
     if not professor:
         return None
@@ -125,6 +132,7 @@ async def _find_or_create_google_user(conn: asyncpg.Connection, google_user: dic
     if not google_sub:
         return None
 
+    # Tenta achar um professor registrado com o email do Google e criar o usuário com base nesse registro
     professor_user = await _create_professor_user_from_registry(conn, email, google_sub)
     if professor_user:
         return professor_user
