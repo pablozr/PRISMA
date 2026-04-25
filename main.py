@@ -17,7 +17,7 @@ async def lifespan(app: FastAPI):
     await postgresql.connect()
     await redis_cache.connect()
     await rabbitmq.connect()
-    print("✅ Todos os serviços conectados com sucesso!")
+    print("Todos os serviços conectados com sucesso!")
 
     yield
 
@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
     await postgresql.disconnect()
     await redis_cache.disconnect()
     await rabbitmq.disconnect()
-    print("✅ Todos os serviços desconectados com sucesso!")
+    print("Todos os serviços desconectados com sucesso!")
 
 
 app = FastAPI(lifespan=lifespan, openapi_url="/api/v1/unirio/openapi.json", root_path="/api/v1/unirio")
