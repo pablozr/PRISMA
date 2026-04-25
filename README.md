@@ -219,3 +219,4 @@ Os documentos centrais do projeto passam a ser:
 
 - `REQUISITOS.md` - visao funcional e academica do sistema
 - `ARQUITETURA.md` - visao tecnica da arquitetura utilizada
+- `MODELAGEM_DE_DADOS.md` - explicacao da modelagem de dados atual
