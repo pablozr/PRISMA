@@ -1,4 +1,4 @@
-from typing import Callable, List, Any
+from typing import Any, Callable, List, Optional
 import inspect
 from starlette.responses import JSONResponse
 from core.logger.logger import logger
@@ -39,3 +39,11 @@ def get_safe_limit_offset(limit: int, offset: int, max_limit: int = 100, max_off
     safe_limit = max(1, min(limit, max_limit))
     safe_offset = max(0, min(offset, max_offset))
     return safe_limit, safe_offset
+
+
+def normalize_positive_int_list(values: Optional[list[int]]) -> Optional[list[int]]:
+    if not values:
+        return None
+
+    normalized = sorted({value for value in values if isinstance(value, int) and value > 0})
+    return normalized or None

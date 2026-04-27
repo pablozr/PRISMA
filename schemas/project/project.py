@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Optional, TypedDict
+from typing import Literal, Optional, TypedDict
 
 from pydantic import BaseModel
 
@@ -12,8 +12,21 @@ class ProjectData(TypedDict):
     full_description: Optional[str]
     contact_email: str
     owner_professor_id: int
+    owner_professor_name: Optional[str]
     executing_unit_id: Optional[int]
+    executing_unit_name: Optional[str]
+    executing_unit_short_name: Optional[str]
+    executing_unit_type: Optional[str]
     source_import_batch_id: Optional[int]
+    project_type_id: Optional[int]
+    project_type_name: Optional[str]
+    project_type_slug: Optional[str]
+    project_type_is_enabled: Optional[bool]
+    area_ids: Optional[list[int]]
+    course_ids: Optional[list[int]]
+    areas: Optional[list[dict]]
+    cursos: Optional[list[dict]]
+    imagens: Optional[list[dict]]
     status: str
     is_active: bool
     starts_at: Optional[date]
@@ -29,14 +42,22 @@ class ProjectListQueryRequest(BaseModel):
     area_ids: Optional[list[int]] = None
     unidade_ids: Optional[list[int]] = None
     curso_ids: Optional[list[int]] = None
-    ordenacao: Optional[str] = None
+    ordenacao: Literal["titulo_asc", "titulo_desc", "data_desc"] = "data_desc"
     page: int = 1
     page_size: int = 20
     somente_habilitados: bool = True
 
 
+class ProjectPaginationData(TypedDict):
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+
+
 class ProjectListDataResponse(TypedDict):
     projetos: list[ProjectData]
+    paginacao: ProjectPaginationData
 
 
 class ProjectListResponse(TypedDict):
