@@ -1,0 +1,62 @@
+import os
+
+import pytest
+from pydantic import ValidationError
+
+os.environ.setdefault("DB_HOST", "localhost")
+os.environ.setdefault("DB_USER", "postgres")
+os.environ.setdefault("DB_PASSWORD", "postgres")
+os.environ.setdefault("DB_NAME", "siepa")
+os.environ.setdefault("SECRET_KEY", "test-secret")
+os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client")
+
+from schemas.project.project import ProjectListQueryRequest, ProjectUpdateRequest
+from schemas.project.project_assignment import ProjectAssignmentCreateRequest
+from schemas.project.project_image import ProjectLogoUploadRequest
+
+
+def test_project_update_request_strips_valid_fields() -> None:
+    payload = ProjectUpdateRequest(titulo="  Novo titulo  ", descricao="  Descricao valida para projeto  ")
+
+    assert payload.titulo == "Novo titulo"
+    assert payload.descricao == "Descricao valida para projeto"
+
+
+def test_project_update_request_rejects_blank_after_strip() -> None:
+    with pytest.raises(ValidationError):
+        ProjectUpdateRequest(titulo="   ")
+
+
+def test_project_logo_upload_request_rejects_non_http_url() -> None:
+    with pytest.raises(ValidationError):
+        ProjectLogoUploadRequest(image_url="ftp://example.com/logo.png")
+
+
+def test_project_assignment_request_rejects_duplicate_course_ids() -> None:
+    with pytest.raises(ValidationError):
+        ProjectAssignmentCreateRequest(
+            descricao="Descricao valida para atribuicao",
+            curso_ids=[1, 1],
+        )
+
+
+def test_project_assignment_request_rejects_non_positive_course_ids() -> None:
+    with pytest.raises(ValidationError):
+        ProjectAssignmentCreateRequest(
+            descricao="Descricao valida para atribuicao",
+            curso_ids=[0, 2],
+        )
+
+
+def test_project_list_query_request_normalizes_ids_and_blank_query() -> None:
+    payload = ProjectListQueryRequest(
+        q="   ",
+        area_ids=[3, 1, 3],
+        unidade_ids=[5, 2],
+        curso_ids=[9, 9, 1],
+    )
+
+    assert payload.q is None
+    assert payload.area_ids == [1, 3]
+    assert payload.unidade_ids == [2, 5]
+    assert payload.curso_ids == [1, 9]
