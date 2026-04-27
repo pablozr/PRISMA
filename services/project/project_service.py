@@ -19,11 +19,15 @@ from functions.utils.utils import (
 )
 from repositories.project.project_repository import (
     ProjectSortOption,
+    create_project_assignment,
+    deactivate_project_assignment,
     exists_public_project,
+    get_manageable_assignment_by_id,
     get_managed_project_by_id,
     get_public_project_assignments,
     get_public_project_by_id,
     get_public_projects,
+    get_project_linked_course_ids,
     get_user_managed_projects,
     update_managed_project_fields,
     upsert_project_cover_image,
@@ -364,3 +368,109 @@ async def upload_project_logo(
     except Exception as e:
         logger.exception(e)
         return service_response(False, "Erro ao atualizar logo do projeto.")
+
+
+async def create_my_project_assignment(
+    conn: asyncpg.Connection,
+    user: dict,
+    project_id: int,
+    descricao: str,
+    curso_ids: list[int],
+) -> dict:
+    try:
+        if project_id <= 0:
+            return service_response(False, "Projeto invalido.")
+
+        auth_context = _extract_authenticated_user_context(user)
+        if not auth_context:
+            return service_response(False, "Usuario autenticado invalido.")
+
+        user_id, user_role, user_email = auth_context
+        safe_description = descricao.strip()
+        if not safe_description:
+            return service_response(False, "Descricao da atribuicao invalida.")
+
+        safe_course_ids = normalize_positive_int_list(curso_ids)
+        if not safe_course_ids:
+            return service_response(False, "Informe ao menos um curso valido.")
+
+        managed_project = await get_managed_project_by_id(
+            conn=conn,
+            project_id=project_id,
+            user_id=user_id,
+            user_role=user_role,
+            user_email=user_email,
+        )
+        if not managed_project:
+            return service_response(False, "Projeto nao encontrado ou sem permissao.")
+
+        linked_course_ids = await get_project_linked_course_ids(
+            conn=conn,
+            project_id=project_id,
+            course_ids=safe_course_ids,
+        )
+        if len(linked_course_ids) != len(safe_course_ids):
+            return service_response(False, "Todos os cursos devem estar vinculados ao projeto.")
+
+        async with conn.transaction():
+            assignment = await create_project_assignment(
+                conn=conn,
+                project_id=project_id,
+                descricao=safe_description,
+                course_ids=safe_course_ids,
+            )
+
+        if not assignment:
+            return service_response(False, "Nao foi possivel criar a atribuicao.")
+
+        return service_response(
+            True,
+            "Atribuicao criada com sucesso.",
+            data={"atribuicao": jsonable_encoder(assignment)},
+        )
+    except Exception as e:
+        logger.exception(e)
+        return service_response(False, "Erro ao criar atribuicao do projeto.")
+
+
+async def delete_my_project_assignment(
+    conn: asyncpg.Connection,
+    user: dict,
+    assignment_id: int,
+) -> dict:
+    try:
+        if assignment_id <= 0:
+            return service_response(False, "Atribuicao invalida.")
+
+        auth_context = _extract_authenticated_user_context(user)
+        if not auth_context:
+            return service_response(False, "Usuario autenticado invalido.")
+
+        user_id, user_role, user_email = auth_context
+        managed_assignment = await get_manageable_assignment_by_id(
+            conn=conn,
+            assignment_id=assignment_id,
+            user_id=user_id,
+            user_role=user_role,
+            user_email=user_email,
+        )
+        if not managed_assignment:
+            return service_response(False, "Atribuicao nao encontrada ou sem permissao.")
+
+        removed = await deactivate_project_assignment(conn=conn, assignment_id=assignment_id)
+        if not removed:
+            return service_response(False, "Nao foi possivel remover a atribuicao.")
+
+        return service_response(
+            True,
+            "Atribuicao removida com sucesso.",
+            data={
+                "atribuicao": {
+                    "atribuicao_id": assignment_id,
+                    "removida": True,
+                }
+            },
+        )
+    except Exception as e:
+        logger.exception(e)
+        return service_response(False, "Erro ao remover atribuicao do projeto.")

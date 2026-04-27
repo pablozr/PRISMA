@@ -1,11 +1,11 @@
 from typing import TypedDict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ProjectAssignmentCreateRequest(BaseModel):
-    descricao: str
-    curso_ids: list[int]
+    descricao: str = Field(min_length=1, max_length=1000)
+    curso_ids: list[int] = Field(min_length=1)
 
 
 class ProjectAssignmentData(TypedDict):

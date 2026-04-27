@@ -606,3 +606,136 @@ async def upsert_project_cover_image(
 
     row = await conn.fetchrow(query, project_id, image_url, alt_text)
     return {**row} if row else None
+
+
+async def get_project_linked_course_ids(
+    conn: asyncpg.Connection,
+    project_id: int,
+    course_ids: list[int],
+) -> list[int]:
+    query = """
+        SELECT pcl.course_id
+        FROM project_course_links pcl
+        JOIN courses c ON c.id = pcl.course_id
+        WHERE pcl.project_id = $1
+          AND c.is_active = TRUE
+          AND pcl.course_id = ANY($2::BIGINT[])
+        ORDER BY pcl.course_id;
+    """
+
+    rows = await conn.fetch(query, project_id, course_ids)
+    return [int(row["course_id"]) for row in rows]
+
+
+async def get_project_assignment_by_id(conn: asyncpg.Connection, assignment_id: int) -> dict | None:
+    query = """
+        SELECT
+            pa.id AS atribuicao_id,
+            pa.project_id AS projeto_id,
+            pa.description AS descricao,
+            COALESCE(
+                ARRAY_AGG(DISTINCT pac.course_id ORDER BY pac.course_id)
+                    FILTER (WHERE pac.course_id IS NOT NULL),
+                ARRAY[]::BIGINT[]
+            ) AS curso_ids
+        FROM project_assignments pa
+        LEFT JOIN project_assignment_courses pac ON pac.project_assignment_id = pa.id
+        WHERE pa.id = $1
+          AND pa.is_active = TRUE
+        GROUP BY pa.id, pa.project_id, pa.description;
+    """
+
+    row = await conn.fetchrow(query, assignment_id)
+    return {**row} if row else None
+
+
+async def create_project_assignment(
+    conn: asyncpg.Connection,
+    project_id: int,
+    descricao: str,
+    course_ids: list[int],
+) -> dict | None:
+    insert_assignment_query = """
+        INSERT INTO project_assignments (
+            project_id,
+            description,
+            sort_order,
+            is_active,
+            created_at,
+            updated_at
+        )
+        VALUES (
+            $1,
+            $2,
+            COALESCE(
+                (
+                    SELECT MAX(pa.sort_order) + 1
+                    FROM project_assignments pa
+                    WHERE pa.project_id = $1
+                ),
+                0
+            ),
+            TRUE,
+            NOW(),
+            NOW()
+        )
+        RETURNING id;
+    """
+
+    assignment_row = await conn.fetchrow(insert_assignment_query, project_id, descricao)
+    if not assignment_row:
+        return None
+
+    assignment_id = int(assignment_row["id"])
+
+    link_courses_query = """
+        INSERT INTO project_assignment_courses (project_assignment_id, course_id)
+        SELECT $1, UNNEST($2::BIGINT[])
+        ON CONFLICT (project_assignment_id, course_id) DO NOTHING;
+    """
+    await conn.execute(link_courses_query, assignment_id, course_ids)
+
+    return await get_project_assignment_by_id(conn, assignment_id)
+
+
+async def get_manageable_assignment_by_id(
+    conn: asyncpg.Connection,
+    assignment_id: int,
+    user_id: int,
+    user_role: str,
+    user_email: str,
+) -> dict | None:
+    query = """
+        SELECT
+            pa.id AS atribuicao_id,
+            pa.project_id AS projeto_id
+        FROM project_assignments pa
+        JOIN projects p ON p.id = pa.project_id
+        LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
+        WHERE pa.id = $1
+          AND pa.is_active = TRUE
+          AND p.is_active = TRUE
+          AND (
+              $2::TEXT = 'admin'
+              OR pr.user_id = $3
+              OR LOWER(p.contact_email::TEXT) = LOWER($4)
+          )
+        LIMIT 1;
+    """
+
+    row = await conn.fetchrow(query, assignment_id, user_role, user_id, user_email)
+    return {**row} if row else None
+
+
+async def deactivate_project_assignment(conn: asyncpg.Connection, assignment_id: int) -> bool:
+    query = """
+        UPDATE project_assignments
+        SET is_active = FALSE,
+            updated_at = NOW()
+        WHERE id = $1
+          AND is_active = TRUE
+        RETURNING id;
+    """
+
+    row = await conn.fetchrow(query, assignment_id)
+    return bool(row)
