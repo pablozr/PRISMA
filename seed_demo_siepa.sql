@@ -59,6 +59,9 @@ DECLARE
   v_eco_id BIGINT;
   v_ia_id BIGINT;
   v_ic_id BIGINT;
+  v_dep_di_id BIGINT;
+  v_dep_bio_id BIGINT;
+  v_dep_edu_id BIGINT;
 
   v_prof_ana_id BIGINT;
   v_prof_bruno_id BIGINT;
@@ -165,7 +168,7 @@ BEGIN
   SELECT id INTO v_eco_id FROM organizational_units WHERE name = 'DEMO - Escola de Educacao' LIMIT 1;
   IF v_eco_id IS NULL THEN
     INSERT INTO organizational_units (name, short_name, type, parent_unit_id)
-    VALUES ('DEMO - Escola de Educacao', 'DEMO-EDU', 'instituto', v_cch_id)
+    VALUES ('DEMO - Escola de Educacao', 'DEMO-EDU', 'escola', v_cch_id)
     RETURNING id INTO v_eco_id;
   END IF;
 
@@ -176,17 +179,38 @@ BEGIN
     RETURNING id INTO v_ia_id;
   END IF;
 
+  SELECT id INTO v_dep_di_id FROM organizational_units WHERE name = 'DEMO - Departamento de Informatica Aplicada' LIMIT 1;
+  IF v_dep_di_id IS NULL THEN
+    INSERT INTO organizational_units (name, short_name, type, parent_unit_id)
+    VALUES ('DEMO - Departamento de Informatica Aplicada', 'DEMO-DEP-DI', 'departamento', v_ic_id)
+    RETURNING id INTO v_dep_di_id;
+  END IF;
+
+  SELECT id INTO v_dep_bio_id FROM organizational_units WHERE name = 'DEMO - Departamento de Biociencias' LIMIT 1;
+  IF v_dep_bio_id IS NULL THEN
+    INSERT INTO organizational_units (name, short_name, type, parent_unit_id)
+    VALUES ('DEMO - Departamento de Biociencias', 'DEMO-DEP-BIO', 'departamento', v_ibio_id)
+    RETURNING id INTO v_dep_bio_id;
+  END IF;
+
+  SELECT id INTO v_dep_edu_id FROM organizational_units WHERE name = 'DEMO - Departamento de Educacao' LIMIT 1;
+  IF v_dep_edu_id IS NULL THEN
+    INSERT INTO organizational_units (name, short_name, type, parent_unit_id)
+    VALUES ('DEMO - Departamento de Educacao', 'DEMO-DEP-EDU', 'departamento', v_eco_id)
+    RETURNING id INTO v_dep_edu_id;
+  END IF;
+
   -- Cursos demo
-  INSERT INTO courses (unit_id, name, level, code, is_active)
+  INSERT INTO courses (offering_unit_id, name, level, code, is_active)
   VALUES
     (v_ic_id, 'DEMO - Sistemas de Informacao', 'graduacao', 'DEMO-SI', TRUE),
     (v_ic_id, 'DEMO - Mestrado em Informatica', 'pos', 'DEMO-PPGI', TRUE),
     (v_ibio_id, 'DEMO - Ciencias Biologicas', 'graduacao', 'DEMO-BIO', TRUE),
     (v_eco_id, 'DEMO - Pedagogia', 'graduacao', 'DEMO-PED', TRUE),
     (v_ia_id, 'DEMO - Musica', 'graduacao', 'DEMO-MUS', TRUE),
-    (v_ccbs_id, 'DEMO - Enfermagem', 'graduacao', 'DEMO-ENF', TRUE)
+    (v_ibio_id, 'DEMO - Enfermagem', 'graduacao', 'DEMO-ENF', TRUE)
   ON CONFLICT (code) DO UPDATE SET
-    unit_id = EXCLUDED.unit_id,
+    offering_unit_id = EXCLUDED.offering_unit_id,
     name = EXCLUDED.name,
     level = EXCLUDED.level,
     is_active = EXCLUDED.is_active;
@@ -203,19 +227,19 @@ BEGIN
     institutional_email,
     full_name,
     siape,
-    unit_id,
+    department_unit_id,
     user_id,
     source_import_batch_id,
     is_active
   )
   VALUES
-    ('ana.martins@demo.unirio.br', 'Ana Martins', 'DEMO-SIAPE-001', v_ic_id, (SELECT id FROM users WHERE institutional_email = 'ana.martins@demo.unirio.br'), v_batch_id, TRUE),
-    ('bruno.costa@demo.unirio.br', 'Bruno Costa', 'DEMO-SIAPE-002', v_ibio_id, (SELECT id FROM users WHERE institutional_email = 'bruno.costa@demo.unirio.br'), v_batch_id, TRUE),
-    ('carla.souza@demo.unirio.br', 'Carla Souza', 'DEMO-SIAPE-003', v_eco_id, (SELECT id FROM users WHERE institutional_email = 'carla.souza@demo.unirio.br'), v_batch_id, TRUE)
+    ('ana.martins@demo.unirio.br', 'Ana Martins', 'DEMO-SIAPE-001', v_dep_di_id, (SELECT id FROM users WHERE institutional_email = 'ana.martins@demo.unirio.br'), v_batch_id, TRUE),
+    ('bruno.costa@demo.unirio.br', 'Bruno Costa', 'DEMO-SIAPE-002', v_dep_bio_id, (SELECT id FROM users WHERE institutional_email = 'bruno.costa@demo.unirio.br'), v_batch_id, TRUE),
+    ('carla.souza@demo.unirio.br', 'Carla Souza', 'DEMO-SIAPE-003', v_dep_edu_id, (SELECT id FROM users WHERE institutional_email = 'carla.souza@demo.unirio.br'), v_batch_id, TRUE)
   ON CONFLICT (institutional_email) DO UPDATE SET
     full_name = EXCLUDED.full_name,
     siape = EXCLUDED.siape,
-    unit_id = EXCLUDED.unit_id,
+    department_unit_id = EXCLUDED.department_unit_id,
     user_id = EXCLUDED.user_id,
     source_import_batch_id = EXCLUDED.source_import_batch_id,
     is_active = EXCLUDED.is_active,
