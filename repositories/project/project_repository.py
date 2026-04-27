@@ -64,10 +64,20 @@ def _build_projects_where_clause(
                 p.executing_unit_id = ANY({unidade_ids_placeholder}::BIGINT[])
                 OR EXISTS (
                     SELECT 1
+                    FROM organizational_units ou_exec
+                    WHERE ou_exec.id = p.executing_unit_id
+                      AND ou_exec.parent_unit_id = ANY({unidade_ids_placeholder}::BIGINT[])
+                )
+                OR EXISTS (
+                    SELECT 1
                     FROM project_course_links pcl
                     JOIN courses c ON c.id = pcl.course_id
+                    LEFT JOIN organizational_units ou_course ON ou_course.id = c.offering_unit_id
                     WHERE pcl.project_id = p.id
-                      AND c.offering_unit_id = ANY({unidade_ids_placeholder}::BIGINT[])
+                      AND (
+                          c.offering_unit_id = ANY({unidade_ids_placeholder}::BIGINT[])
+                          OR ou_course.parent_unit_id = ANY({unidade_ids_placeholder}::BIGINT[])
+                      )
                 )
             )
             """
