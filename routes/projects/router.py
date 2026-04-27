@@ -66,7 +66,7 @@ async def get_project_assignments(project_id: int, conn=Depends(postgresql.get_d
     return await default_response(list_project_assignments, [conn, project_id])
 
 
-@router.get("/me/projetos")
+@router.get("/me/projects")
 async def get_my_projects(
     user=Depends(security.require_professor_rank()),
     conn=Depends(postgresql.get_db),
@@ -77,7 +77,7 @@ async def get_my_projects(
     return await default_response(list_my_projects, [conn, user, page, page_size, q])
 
 
-@router.patch("/projetos/{project_id}")
+@router.patch("/projects/{project_id}")
 async def patch_my_project(
     project_id: int,
     payload: ProjectUpdateRequest,
@@ -90,7 +90,7 @@ async def patch_my_project(
     )
 
 
-@router.post("/projetos/{project_id}/logo")
+@router.post("/projects/{project_id}/logo")
 async def post_project_logo(
     project_id: int,
     payload: ProjectLogoUploadRequest,
@@ -103,7 +103,7 @@ async def post_project_logo(
     )
 
 
-@router.post("/projetos/{project_id}/atribuicoes")
+@router.post("/projects/{project_id}/atribuicoes")
 async def post_project_assignment(
     project_id: int,
     payload: ProjectAssignmentCreateRequest,
