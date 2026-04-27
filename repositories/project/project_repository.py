@@ -435,3 +435,174 @@ async def get_user_managed_projects(
 
     rows = await conn.fetch(query, user_role, user_id, user_email, q_filter, page_size, offset)
     return [{**row} for row in rows], total
+
+
+async def get_managed_project_by_id(
+    conn: asyncpg.Connection,
+    project_id: int,
+    user_id: int,
+    user_role: str,
+    user_email: str,
+) -> dict | None:
+    query = """
+        SELECT
+            p.id,
+            p.process_code,
+            p.title,
+            p.short_description,
+            p.full_description,
+            p.contact_email,
+            p.owner_professor_id,
+            pr.full_name AS owner_professor_name,
+            p.executing_unit_id,
+            ou.name AS executing_unit_name,
+            ou.short_name AS executing_unit_short_name,
+            ou.type AS executing_unit_type,
+            p.source_import_batch_id,
+            p.project_type_id,
+            pt.name AS project_type_name,
+            pt.slug AS project_type_slug,
+            COALESCE(pt.is_enabled, TRUE) AS project_type_is_enabled,
+            p.status,
+            p.is_active,
+            p.starts_at,
+            p.ends_at,
+            p.created_at,
+            p.updated_at,
+            p.published_at,
+            p.deactivated_at,
+            COALESCE(
+                (
+                    SELECT jsonb_agg(
+                        jsonb_build_object(
+                            'id', pa.id,
+                            'name', pa.name,
+                            'slug', pa.slug
+                        )
+                        ORDER BY pa.name
+                    )
+                    FROM project_area_links pal
+                    JOIN project_areas pa ON pa.id = pal.area_id
+                    WHERE pal.project_id = p.id
+                ),
+                '[]'::jsonb
+            ) AS areas,
+            COALESCE(
+                (
+                    SELECT jsonb_agg(
+                        jsonb_build_object(
+                            'id', c.id,
+                            'unit_id', c.unit_id,
+                            'name', c.name,
+                            'level', c.level,
+                            'code', c.code,
+                            'is_active', c.is_active
+                        )
+                        ORDER BY c.name
+                    )
+                    FROM project_course_links pcl
+                    JOIN courses c ON c.id = pcl.course_id
+                    WHERE pcl.project_id = p.id
+                ),
+                '[]'::jsonb
+            ) AS cursos,
+            COALESCE(
+                (
+                    SELECT jsonb_agg(
+                        jsonb_build_object(
+                            'id', pi.id,
+                            'image_type', pi.image_type,
+                            'image_url', pi.image_url,
+                            'alt_text', pi.alt_text,
+                            'sort_order', pi.sort_order
+                        )
+                        ORDER BY
+                            CASE WHEN pi.image_type = 'cover' THEN 0 ELSE 1 END,
+                            pi.sort_order,
+                            pi.id
+                    )
+                    FROM project_images pi
+                    WHERE pi.project_id = p.id
+                ),
+                '[]'::jsonb
+            ) AS imagens
+        FROM projects p
+        LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
+        LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
+        LEFT JOIN project_types pt ON pt.id = p.project_type_id
+        WHERE p.id = $1
+          AND p.is_active = TRUE
+          AND (
+              $2::TEXT = 'admin'
+              OR pr.user_id = $3
+              OR LOWER(p.contact_email::TEXT) = LOWER($4)
+          )
+        LIMIT 1;
+    """
+
+    row = await conn.fetchrow(query, project_id, user_role, user_id, user_email)
+    return {**row} if row else None
+
+
+async def update_managed_project_fields(
+    conn: asyncpg.Connection,
+    project_id: int,
+    titulo: Optional[str],
+    descricao: Optional[str],
+) -> bool:
+    updates: list[str] = []
+    params: list[object] = []
+
+    if titulo is not None:
+        params.append(titulo)
+        updates.append(f"title = ${len(params)}")
+
+    if descricao is not None:
+        params.append(descricao)
+        updates.append(f"full_description = ${len(params)}")
+
+    if not updates:
+        return False
+
+    updates.append("updated_at = NOW()")
+    params.append(project_id)
+
+    query = f"""
+        UPDATE projects
+        SET {', '.join(updates)}
+        WHERE id = ${len(params)}
+          AND is_active = TRUE
+        RETURNING id;
+    """
+
+    row = await conn.fetchrow(query, *params)
+    return bool(row)
+
+
+async def upsert_project_cover_image(
+    conn: asyncpg.Connection,
+    project_id: int,
+    image_url: str,
+    alt_text: Optional[str],
+) -> dict | None:
+    query = """
+        INSERT INTO project_images (
+            project_id,
+            image_type,
+            image_url,
+            alt_text,
+            sort_order,
+            created_at
+        )
+        VALUES ($1, 'cover', $2, $3, 0, NOW())
+        ON CONFLICT (project_id)
+        WHERE image_type = 'cover'
+        DO UPDATE SET
+            image_url = EXCLUDED.image_url,
+            alt_text = EXCLUDED.alt_text,
+            sort_order = 0
+        RETURNING project_id AS projeto_id, image_url, alt_text;
+    """
+
+    row = await conn.fetchrow(query, project_id, image_url, alt_text)
+    return {**row} if row else None

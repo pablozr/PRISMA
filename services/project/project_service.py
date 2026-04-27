@@ -20,10 +20,13 @@ from functions.utils.utils import (
 from repositories.project.project_repository import (
     ProjectSortOption,
     exists_public_project,
+    get_managed_project_by_id,
     get_public_project_assignments,
     get_public_project_by_id,
     get_public_projects,
     get_user_managed_projects,
+    update_managed_project_fields,
+    upsert_project_cover_image,
 )
 
 
@@ -171,6 +174,14 @@ def _extract_authenticated_user_context(user: dict) -> tuple[int, str, str] | No
     return user_id, user_role.strip().lower(), user_email.strip()
 
 
+def _normalize_optional_text(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+
+    normalized = value.strip()
+    return normalized if normalized else None
+
+
 async def list_my_projects(
     conn: asyncpg.Connection,
     user: dict,
@@ -237,3 +248,119 @@ async def list_my_projects(
     except Exception as e:
         logger.exception(e)
         return service_response(False, "Erro ao recuperar projetos do usuario.")
+
+
+async def update_my_project(
+    conn: asyncpg.Connection,
+    user: dict,
+    project_id: int,
+    titulo: Optional[str],
+    descricao: Optional[str],
+) -> dict:
+    try:
+        if project_id <= 0:
+            return service_response(False, "Projeto invalido.")
+
+        auth_context = _extract_authenticated_user_context(user)
+        if not auth_context:
+            return service_response(False, "Usuario autenticado invalido.")
+
+        user_id, user_role, user_email = auth_context
+        safe_titulo = _normalize_optional_text(titulo)
+        safe_descricao = _normalize_optional_text(descricao)
+
+        if titulo is not None and safe_titulo is None:
+            return service_response(False, "Titulo invalido.")
+
+        if descricao is not None and safe_descricao is None:
+            return service_response(False, "Descricao invalida.")
+
+        if safe_titulo is None and safe_descricao is None:
+            return service_response(False, "Informe titulo ou descricao para atualizar.")
+
+        managed_project = await get_managed_project_by_id(
+            conn=conn,
+            project_id=project_id,
+            user_id=user_id,
+            user_role=user_role,
+            user_email=user_email,
+        )
+        if not managed_project:
+            return service_response(False, "Projeto nao encontrado ou sem permissao.")
+
+        updated = await update_managed_project_fields(
+            conn=conn,
+            project_id=project_id,
+            titulo=safe_titulo,
+            descricao=safe_descricao,
+        )
+        if not updated:
+            return service_response(False, "Nao foi possivel atualizar o projeto.")
+
+        refreshed_project = await get_managed_project_by_id(
+            conn=conn,
+            project_id=project_id,
+            user_id=user_id,
+            user_role=user_role,
+            user_email=user_email,
+        )
+        encoded_project = jsonable_encoder(refreshed_project or managed_project)
+
+        return service_response(
+            True,
+            "Projeto atualizado com sucesso.",
+            data={"projeto": encoded_project},
+        )
+    except Exception as e:
+        logger.exception(e)
+        return service_response(False, "Erro ao atualizar projeto.")
+
+
+async def upload_project_logo(
+    conn: asyncpg.Connection,
+    user: dict,
+    project_id: int,
+    image_url: str,
+    alt_text: Optional[str],
+) -> dict:
+    try:
+        if project_id <= 0:
+            return service_response(False, "Projeto invalido.")
+
+        auth_context = _extract_authenticated_user_context(user)
+        if not auth_context:
+            return service_response(False, "Usuario autenticado invalido.")
+
+        user_id, user_role, user_email = auth_context
+        safe_image_url = image_url.strip()
+        if not safe_image_url:
+            return service_response(False, "URL da imagem invalida.")
+
+        safe_alt_text = _normalize_optional_text(alt_text)
+        managed_project = await get_managed_project_by_id(
+            conn=conn,
+            project_id=project_id,
+            user_id=user_id,
+            user_role=user_role,
+            user_email=user_email,
+        )
+        if not managed_project:
+            return service_response(False, "Projeto nao encontrado ou sem permissao.")
+
+        logo = await upsert_project_cover_image(
+            conn=conn,
+            project_id=project_id,
+            image_url=safe_image_url,
+            alt_text=safe_alt_text,
+        )
+        if not logo:
+            return service_response(False, "Nao foi possivel atualizar a logo do projeto.")
+
+        return service_response(
+            True,
+            "Logo do projeto atualizada com sucesso.",
+            data={"logo": jsonable_encoder(logo)},
+        )
+    except Exception as e:
+        logger.exception(e)
+        return service_response(False, "Erro ao atualizar logo do projeto.")
