@@ -1,5 +1,5 @@
 from math import ceil
-from typing import Optional, cast
+from typing import Optional
 
 import asyncpg
 from fastapi.encoders import jsonable_encoder
@@ -13,21 +13,19 @@ from core.config.config import (
 )
 from core.logger.logger import logger
 from functions.utils.utils import (
+    extract_authenticated_user_context,
     get_safe_limit_offset,
     normalize_positive_int_list,
     service_response,
 )
+from schemas.project.project import ProjectUpdateRequest
 from repositories.project.project_repository import (
-    ProjectSortOption,
     create_project_assignment,
     deactivate_project_assignment,
     exists_public_project,
-    get_manageable_assignment_by_id,
-    get_managed_project_by_id,
     get_public_project_assignments,
     get_public_project_by_id,
     get_public_projects,
-    get_project_linked_course_ids,
     get_user_managed_projects,
     update_managed_project_fields,
     upsert_project_cover_image,
@@ -161,31 +159,6 @@ async def list_project_assignments(conn: asyncpg.Connection, project_id: int) ->
         return service_response(False, "Erro ao recuperar atribuicoes do projeto.")
 
 
-def _extract_authenticated_user_context(user: dict) -> tuple[int, str, str] | None:
-    user_id = user.get("id")
-    user_role = user.get("role")
-    user_email = user.get("institutional_email") or user.get("email")
-
-    if not isinstance(user_id, int) or user_id <= 0:
-        return None
-
-    if not isinstance(user_role, str) or not user_role.strip():
-        return None
-
-    if not isinstance(user_email, str) or not user_email.strip():
-        return None
-
-    return user_id, user_role.strip().lower(), user_email.strip()
-
-
-def _normalize_optional_text(value: Optional[str]) -> Optional[str]:
-    if value is None:
-        return None
-
-    normalized = value.strip()
-    return normalized if normalized else None
-
-
 async def list_my_projects(
     conn: asyncpg.Connection,
     user: dict,
@@ -194,11 +167,11 @@ async def list_my_projects(
     q: Optional[str] = None,
 ) -> dict:
     try:
-        auth_context = _extract_authenticated_user_context(user)
+        auth_context = extract_authenticated_user_context(user)
         if not auth_context:
             return service_response(False, "Usuario autenticado invalido.")
 
-        user_id, user_role, user_email = auth_context
+        user_id, user_role = auth_context
 
         safe_page = page if page > 0 else PROJECTS_DEFAULT_PAGE
         requested_page_size = page_size if page_size > 0 else PROJECTS_DEFAULT_PAGE_SIZE
@@ -213,7 +186,6 @@ async def list_my_projects(
             conn=conn,
             user_id=user_id,
             user_role=user_role,
-            user_email=user_email,
             page=safe_page,
             page_size=safe_page_size,
             q=q,
@@ -258,62 +230,47 @@ async def update_my_project(
     conn: asyncpg.Connection,
     user: dict,
     project_id: int,
-    titulo: Optional[str],
-    descricao: Optional[str],
+    data: ProjectUpdateRequest,
 ) -> dict:
     try:
         if project_id <= 0:
             return service_response(False, "Projeto invalido.")
 
-        auth_context = _extract_authenticated_user_context(user)
+        auth_context = extract_authenticated_user_context(user)
         if not auth_context:
             return service_response(False, "Usuario autenticado invalido.")
 
-        user_id, user_role, user_email = auth_context
-        safe_titulo = _normalize_optional_text(titulo)
-        safe_descricao = _normalize_optional_text(descricao)
+        user_id, user_role = auth_context
+        allowed_columns = {"titulo", "descricao"}
+        filtered = {k: v for k, v in data.model_dump(exclude_unset=True).items() if k in allowed_columns}
 
-        if titulo is not None and safe_titulo is None:
-            return service_response(False, "Titulo invalido.")
+        if not filtered:
+            return service_response(False, "Nenhum campo valido informado para atualizacao.")
 
-        if descricao is not None and safe_descricao is None:
-            return service_response(False, "Descricao invalida.")
+        db_column_map = {
+            "titulo": "title",
+            "descricao": "full_description",
+        }
 
-        if safe_titulo is None and safe_descricao is None:
-            return service_response(False, "Informe titulo ou descricao para atualizar.")
+        allowed_fields = {
+            db_column_map[field_name]: field_value
+            for field_name, field_value in filtered.items()
+        }
 
-        managed_project = await get_managed_project_by_id(
+        updated_project = await update_managed_project_fields(
             conn=conn,
             project_id=project_id,
             user_id=user_id,
             user_role=user_role,
-            user_email=user_email,
+            allowed_fields=allowed_fields,
         )
-        if not managed_project:
+        if not updated_project:
             return service_response(False, "Projeto nao encontrado ou sem permissao.")
-
-        updated = await update_managed_project_fields(
-            conn=conn,
-            project_id=project_id,
-            titulo=safe_titulo,
-            descricao=safe_descricao,
-        )
-        if not updated:
-            return service_response(False, "Nao foi possivel atualizar o projeto.")
-
-        refreshed_project = await get_managed_project_by_id(
-            conn=conn,
-            project_id=project_id,
-            user_id=user_id,
-            user_role=user_role,
-            user_email=user_email,
-        )
-        encoded_project = jsonable_encoder(refreshed_project or managed_project)
 
         return service_response(
             True,
             "Projeto atualizado com sucesso.",
-            data={"projeto": encoded_project},
+            data={"projeto": jsonable_encoder(updated_project)},
         )
     except Exception as e:
         logger.exception(e)
@@ -331,34 +288,24 @@ async def upload_project_logo(
         if project_id <= 0:
             return service_response(False, "Projeto invalido.")
 
-        auth_context = _extract_authenticated_user_context(user)
+        auth_context = extract_authenticated_user_context(user)
         if not auth_context:
             return service_response(False, "Usuario autenticado invalido.")
 
-        user_id, user_role, user_email = auth_context
-        safe_image_url = image_url.strip()
-        if not safe_image_url:
+        user_id, user_role = auth_context
+        if not image_url:
             return service_response(False, "URL da imagem invalida.")
-
-        safe_alt_text = _normalize_optional_text(alt_text)
-        managed_project = await get_managed_project_by_id(
-            conn=conn,
-            project_id=project_id,
-            user_id=user_id,
-            user_role=user_role,
-            user_email=user_email,
-        )
-        if not managed_project:
-            return service_response(False, "Projeto nao encontrado ou sem permissao.")
 
         logo = await upsert_project_cover_image(
             conn=conn,
             project_id=project_id,
-            image_url=safe_image_url,
-            alt_text=safe_alt_text,
+            user_id=user_id,
+            user_role=user_role,
+            image_url=image_url,
+            alt_text=alt_text,
         )
         if not logo:
-            return service_response(False, "Nao foi possivel atualizar a logo do projeto.")
+            return service_response(False, "Projeto nao encontrado ou sem permissao.")
 
         return service_response(
             True,
@@ -381,53 +328,46 @@ async def create_my_project_assignment(
         if project_id <= 0:
             return service_response(False, "Projeto invalido.")
 
-        auth_context = _extract_authenticated_user_context(user)
+        auth_context = extract_authenticated_user_context(user)
         if not auth_context:
             return service_response(False, "Usuario autenticado invalido.")
 
-        user_id, user_role, user_email = auth_context
-        safe_description = descricao.strip()
-        if not safe_description:
+        user_id, user_role = auth_context
+        if not descricao:
             return service_response(False, "Descricao da atribuicao invalida.")
 
-        safe_course_ids = normalize_positive_int_list(curso_ids)
-        if not safe_course_ids:
+        normalized_course_ids = normalize_positive_int_list(curso_ids)
+        if not normalized_course_ids:
             return service_response(False, "Informe ao menos um curso valido.")
 
-        managed_project = await get_managed_project_by_id(
-            conn=conn,
-            project_id=project_id,
-            user_id=user_id,
-            user_role=user_role,
-            user_email=user_email,
-        )
-        if not managed_project:
-            return service_response(False, "Projeto nao encontrado ou sem permissao.")
-
-        linked_course_ids = await get_project_linked_course_ids(
-            conn=conn,
-            project_id=project_id,
-            course_ids=safe_course_ids,
-        )
-        if len(linked_course_ids) != len(safe_course_ids):
-            return service_response(False, "Todos os cursos devem estar vinculados ao projeto.")
-
         async with conn.transaction():
-            assignment = await create_project_assignment(
+            assignment_result = await create_project_assignment(
                 conn=conn,
                 project_id=project_id,
-                descricao=safe_description,
-                course_ids=safe_course_ids,
+                user_id=user_id,
+                user_role=user_role,
+                descricao=descricao,
+                course_ids=normalized_course_ids,
             )
 
-        if not assignment:
-            return service_response(False, "Nao foi possivel criar a atribuicao.")
+            if not assignment_result["has_project_access"]:
+                raise ValueError("Projeto nao encontrado ou sem permissao.")
+
+            if assignment_result["valid_course_count"] != assignment_result["requested_course_count"]:
+                raise ValueError("Todos os cursos devem estar vinculados ao projeto.")
+
+            assignment = assignment_result.get("assignment")
+            if not assignment:
+                raise ValueError("Nao foi possivel criar a atribuicao.")
 
         return service_response(
             True,
             "Atribuicao criada com sucesso.",
             data={"atribuicao": jsonable_encoder(assignment)},
         )
+    except ValueError as e:
+        logger.exception(e)
+        return service_response(False, str(e))
     except Exception as e:
         logger.exception(e)
         return service_response(False, "Erro ao criar atribuicao do projeto.")
@@ -442,24 +382,19 @@ async def delete_my_project_assignment(
         if assignment_id <= 0:
             return service_response(False, "Atribuicao invalida.")
 
-        auth_context = _extract_authenticated_user_context(user)
+        auth_context = extract_authenticated_user_context(user)
         if not auth_context:
             return service_response(False, "Usuario autenticado invalido.")
 
-        user_id, user_role, user_email = auth_context
-        managed_assignment = await get_manageable_assignment_by_id(
+        user_id, user_role = auth_context
+        removed = await deactivate_project_assignment(
             conn=conn,
             assignment_id=assignment_id,
             user_id=user_id,
             user_role=user_role,
-            user_email=user_email,
         )
-        if not managed_assignment:
-            return service_response(False, "Atribuicao nao encontrada ou sem permissao.")
-
-        removed = await deactivate_project_assignment(conn=conn, assignment_id=assignment_id)
         if not removed:
-            return service_response(False, "Nao foi possivel remover a atribuicao.")
+            return service_response(False, "Atribuicao nao encontrada ou sem permissao.")
 
         return service_response(
             True,

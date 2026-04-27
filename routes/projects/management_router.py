@@ -40,7 +40,7 @@ async def patch_my_project(
 ):
     return await default_response(
         update_my_project,
-        [conn, user, project_id, payload.titulo, payload.descricao],
+        [conn, user, project_id, payload],
     )
 
 
