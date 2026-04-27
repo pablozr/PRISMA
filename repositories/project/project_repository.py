@@ -328,3 +328,110 @@ async def get_public_project_assignments(conn: asyncpg.Connection, project_id: i
 
     rows = await conn.fetch(query, project_id)
     return [{**row} for row in rows]
+
+
+async def get_user_managed_projects(
+    conn: asyncpg.Connection,
+    user_id: int,
+    user_role: str,
+    user_email: str,
+    page: int,
+    page_size: int,
+    q: Optional[str],
+) -> tuple[list[dict], int]:
+    normalized_q = (q or "").strip()
+    q_filter = f"%{normalized_q}%" if normalized_q else None
+
+    count_query = """
+        SELECT COUNT(*)::BIGINT AS total
+        FROM projects p
+        LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
+        LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
+        LEFT JOIN project_types pt ON pt.id = p.project_type_id
+        WHERE p.is_active = TRUE
+          AND (
+              $1::TEXT = 'admin'
+              OR pr.user_id = $2
+              OR LOWER(p.contact_email::TEXT) = LOWER($3)
+          )
+          AND (
+              $4::TEXT IS NULL
+              OR p.title ILIKE $4
+              OR COALESCE(p.short_description, '') ILIKE $4
+              OR COALESCE(p.full_description, '') ILIKE $4
+          );
+    """
+
+    count_row = await conn.fetchrow(count_query, user_role, user_id, user_email, q_filter)
+    total = int(count_row["total"]) if count_row else 0
+
+    offset = (page - 1) * page_size
+
+    query = """
+        SELECT
+            p.id,
+            p.process_code,
+            p.title,
+            p.short_description,
+            p.full_description,
+            p.contact_email,
+            p.owner_professor_id,
+            pr.full_name AS owner_professor_name,
+            p.executing_unit_id,
+            ou.name AS executing_unit_name,
+            ou.short_name AS executing_unit_short_name,
+            ou.type AS executing_unit_type,
+            p.source_import_batch_id,
+            p.project_type_id,
+            pt.name AS project_type_name,
+            pt.slug AS project_type_slug,
+            COALESCE(pt.is_enabled, TRUE) AS project_type_is_enabled,
+            p.status,
+            p.is_active,
+            p.starts_at,
+            p.ends_at,
+            p.created_at,
+            p.updated_at,
+            p.published_at,
+            p.deactivated_at,
+            COALESCE(
+                ARRAY(
+                    SELECT pal.area_id
+                    FROM project_area_links pal
+                    WHERE pal.project_id = p.id
+                    ORDER BY pal.area_id
+                ),
+                ARRAY[]::BIGINT[]
+            ) AS area_ids,
+            COALESCE(
+                ARRAY(
+                    SELECT pcl.course_id
+                    FROM project_course_links pcl
+                    WHERE pcl.project_id = p.id
+                    ORDER BY pcl.course_id
+                ),
+                ARRAY[]::BIGINT[]
+            ) AS course_ids
+        FROM projects p
+        LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
+        LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
+        LEFT JOIN project_types pt ON pt.id = p.project_type_id
+        WHERE p.is_active = TRUE
+          AND (
+              $1::TEXT = 'admin'
+              OR pr.user_id = $2
+              OR LOWER(p.contact_email::TEXT) = LOWER($3)
+          )
+          AND (
+              $4::TEXT IS NULL
+              OR p.title ILIKE $4
+              OR COALESCE(p.short_description, '') ILIKE $4
+              OR COALESCE(p.full_description, '') ILIKE $4
+          )
+        ORDER BY p.updated_at DESC, p.id DESC
+        LIMIT $5
+        OFFSET $6;
+    """
+
+    rows = await conn.fetch(query, user_role, user_id, user_email, q_filter, page_size, offset)
+    return [{**row} for row in rows], total

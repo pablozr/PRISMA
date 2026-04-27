@@ -23,6 +23,7 @@ from repositories.project.project_repository import (
     get_public_project_assignments,
     get_public_project_by_id,
     get_public_projects,
+    get_user_managed_projects,
 )
 
 
@@ -151,3 +152,88 @@ async def list_project_assignments(conn: asyncpg.Connection, project_id: int) ->
     except Exception as e:
         logger.exception(e)
         return service_response(False, "Erro ao recuperar atribuicoes do projeto.")
+
+
+def _extract_authenticated_user_context(user: dict) -> tuple[int, str, str] | None:
+    user_id = user.get("id")
+    user_role = user.get("role")
+    user_email = user.get("institutional_email") or user.get("email")
+
+    if not isinstance(user_id, int) or user_id <= 0:
+        return None
+
+    if not isinstance(user_role, str) or not user_role.strip():
+        return None
+
+    if not isinstance(user_email, str) or not user_email.strip():
+        return None
+
+    return user_id, user_role.strip().lower(), user_email.strip()
+
+
+async def list_my_projects(
+    conn: asyncpg.Connection,
+    user: dict,
+    page: int,
+    page_size: int,
+    q: Optional[str] = None,
+) -> dict:
+    try:
+        auth_context = _extract_authenticated_user_context(user)
+        if not auth_context:
+            return service_response(False, "Usuario autenticado invalido.")
+
+        user_id, user_role, user_email = auth_context
+
+        safe_page = page if page > 0 else PROJECTS_DEFAULT_PAGE
+        requested_page_size = page_size if page_size > 0 else PROJECTS_DEFAULT_PAGE_SIZE
+        safe_page_size, _ = get_safe_limit_offset(
+            limit=requested_page_size,
+            offset=0,
+            max_limit=PROJECTS_MAX_PAGE_SIZE,
+            max_offset=0,
+        )
+
+        projects, total = await get_user_managed_projects(
+            conn=conn,
+            user_id=user_id,
+            user_role=user_role,
+            user_email=user_email,
+            page=safe_page,
+            page_size=safe_page_size,
+            q=q,
+        )
+        encoded_projects = jsonable_encoder(projects)
+        total_pages = ceil(total / safe_page_size) if total > 0 else 0
+
+        if not encoded_projects:
+            return service_response(
+                True,
+                "Nenhum projeto encontrado para o usuario autenticado.",
+                data={
+                    "projetos": [],
+                    "paginacao": {
+                        "page": safe_page,
+                        "page_size": safe_page_size,
+                        "total": total,
+                        "total_pages": total_pages,
+                    },
+                },
+            )
+
+        return service_response(
+            True,
+            "Projetos do usuario recuperados com sucesso.",
+            data={
+                "projetos": encoded_projects,
+                "paginacao": {
+                    "page": safe_page,
+                    "page_size": safe_page_size,
+                    "total": total,
+                    "total_pages": total_pages,
+                },
+            },
+        )
+    except Exception as e:
+        logger.exception(e)
+        return service_response(False, "Erro ao recuperar projetos do usuario.")
