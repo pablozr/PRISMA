@@ -1,7 +1,17 @@
 from datetime import date, datetime
 from typing import Literal, Optional, TypedDict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+PROJECT_TITLE_MIN_LENGTH = 3
+PROJECT_TITLE_MAX_LENGTH = 255
+PROJECT_DESCRIPTION_MIN_LENGTH = 10
+PROJECT_DESCRIPTION_MAX_LENGTH = 10000
+PROJECT_SEARCH_MAX_LENGTH = 255
+
+
+class BaseProjectRequestModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
 
 class ProjectData(TypedDict):
@@ -37,15 +47,36 @@ class ProjectData(TypedDict):
     deactivated_at: Optional[datetime]
 
 
-class ProjectListQueryRequest(BaseModel):
-    q: Optional[str] = None
+class ProjectListQueryRequest(BaseProjectRequestModel):
+    q: Optional[str] = Field(default=None, min_length=1, max_length=PROJECT_SEARCH_MAX_LENGTH)
     area_ids: Optional[list[int]] = None
     unidade_ids: Optional[list[int]] = None
     curso_ids: Optional[list[int]] = None
     ordenacao: Literal["titulo_asc", "titulo_desc", "data_desc"] = "data_desc"
-    page: int = 1
-    page_size: int = 20
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=20, ge=1, le=100)
     somente_habilitados: bool = True
+
+    @field_validator("q")
+    @classmethod
+    def strip_query(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("area_ids", "unidade_ids", "curso_ids")
+    @classmethod
+    def normalize_positive_ids(cls, value: Optional[list[int]]) -> Optional[list[int]]:
+        if value is None:
+            return None
+
+        normalized = sorted(set(value))
+        if any(item <= 0 for item in normalized):
+            raise ValueError("Os IDs devem ser inteiros positivos.")
+
+        return normalized or None
 
 
 class ProjectPaginationData(TypedDict):
@@ -76,9 +107,29 @@ class ProjectDetailResponse(TypedDict):
     data: ProjectDetailDataResponse
 
 
-class ProjectUpdateRequest(BaseModel):
-    titulo: Optional[str] = None
-    descricao: Optional[str] = None
+class ProjectUpdateRequest(BaseProjectRequestModel):
+    titulo: Optional[str] = Field(
+        default=None,
+        min_length=PROJECT_TITLE_MIN_LENGTH,
+        max_length=PROJECT_TITLE_MAX_LENGTH,
+    )
+    descricao: Optional[str] = Field(
+        default=None,
+        min_length=PROJECT_DESCRIPTION_MIN_LENGTH,
+        max_length=PROJECT_DESCRIPTION_MAX_LENGTH,
+    )
+
+    @field_validator("titulo", "descricao")
+    @classmethod
+    def strip_text(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("O campo nao pode ser vazio.")
+
+        return normalized
 
 
 class ProjectUpdateResponse(TypedDict):
@@ -87,7 +138,7 @@ class ProjectUpdateResponse(TypedDict):
     data: ProjectDetailDataResponse
 
 
-class ProjectStatusUpdateRequest(BaseModel):
+class ProjectStatusUpdateRequest(BaseProjectRequestModel):
     habilitado: bool
 
 
