@@ -47,3 +47,16 @@ def normalize_positive_int_list(values: Optional[list[int]]) -> Optional[list[in
 
     normalized = sorted({value for value in values if isinstance(value, int) and value > 0})
     return normalized or None
+
+
+def extract_authenticated_user_context(user: dict) -> tuple[int, str] | None:
+    user_id = user.get("id")
+    user_role = user.get("role")
+
+    if not isinstance(user_id, int) or user_id <= 0:
+        return None
+
+    if not isinstance(user_role, str) or not user_role.strip():
+        return None
+
+    return user_id, user_role.strip().lower()
