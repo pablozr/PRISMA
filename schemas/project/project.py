@@ -45,6 +45,9 @@ class ProjectData(TypedDict):
     updated_at: datetime
     published_at: Optional[datetime]
     deactivated_at: Optional[datetime]
+    cover_image_id: Optional[int]
+    cover_image_url: Optional[str]
+    cover_image_alt_text: Optional[str]
 
 
 class ProjectListQueryRequest(BaseProjectRequestModel):

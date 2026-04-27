@@ -166,6 +166,9 @@ async def get_public_projects(
             p.updated_at,
             p.published_at,
             p.deactivated_at,
+            pic.id AS cover_image_id,
+            pic.image_url AS cover_image_url,
+            pic.alt_text AS cover_image_alt_text,
             COALESCE(
                 ARRAY(
                     SELECT pal.area_id
@@ -188,6 +191,7 @@ async def get_public_projects(
         LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
         LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
         LEFT JOIN project_types pt ON pt.id = p.project_type_id
+        LEFT JOIN project_images pic ON pic.project_id = p.id AND pic.image_type = 'cover'
         WHERE {where_clause}
         ORDER BY {order_by_clause}
         LIMIT {limit_placeholder}
@@ -402,6 +406,9 @@ async def get_user_managed_projects(
             p.updated_at,
             p.published_at,
             p.deactivated_at,
+            pic.id AS cover_image_id,
+            pic.image_url AS cover_image_url,
+            pic.alt_text AS cover_image_alt_text,
             COALESCE(
                 ARRAY(
                     SELECT pal.area_id
@@ -424,6 +431,7 @@ async def get_user_managed_projects(
         LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
         LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
         LEFT JOIN project_types pt ON pt.id = p.project_type_id
+        LEFT JOIN project_images pic ON pic.project_id = p.id AND pic.image_type = 'cover'
         WHERE p.is_active = TRUE
           AND (
               $1::TEXT = 'admin'
