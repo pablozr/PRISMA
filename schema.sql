@@ -34,7 +34,7 @@ CREATE TABLE organizational_units (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   name TEXT NOT NULL,
   short_name TEXT,
-  type TEXT NOT NULL CHECK (type IN ('centro', 'departamento', 'instituto')),
+  type TEXT NOT NULL CHECK (type IN ('centro', 'escola', 'instituto', 'departamento')),
   parent_unit_id BIGINT REFERENCES organizational_units(id),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -45,7 +45,7 @@ CREATE TABLE professor_registry (
   institutional_email CITEXT NOT NULL UNIQUE,
   full_name TEXT NOT NULL,
   siape TEXT UNIQUE,
-  unit_id BIGINT REFERENCES organizational_units(id),
+  department_unit_id BIGINT REFERENCES organizational_units(id),
   user_id BIGINT UNIQUE REFERENCES users(id),
   source_import_batch_id BIGINT REFERENCES import_batches(id),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -106,7 +106,7 @@ CREATE UNIQUE INDEX uq_project_single_cover
 
 CREATE TABLE courses (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  unit_id BIGINT REFERENCES organizational_units(id),
+  offering_unit_id BIGINT REFERENCES organizational_units(id),
   name TEXT NOT NULL,
   level TEXT NOT NULL CHECK (level IN ('graduacao', 'pos')),
   code TEXT UNIQUE,
@@ -242,8 +242,8 @@ CREATE INDEX idx_projects_type
 CREATE INDEX idx_org_units_parent
   ON organizational_units(parent_unit_id);
 
-CREATE INDEX idx_courses_unit
-  ON courses(unit_id);
+CREATE INDEX idx_courses_offering_unit
+  ON courses(offering_unit_id);
 
 CREATE INDEX idx_project_area_links_area
   ON project_area_links(area_id);

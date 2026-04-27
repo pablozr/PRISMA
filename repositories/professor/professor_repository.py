@@ -55,7 +55,7 @@ async def get_active_professor_by_email(conn: asyncpg.Connection, email: str) ->
                    institutional_email,
                    full_name,
                    siape,
-                   unit_id,
+                   department_unit_id,
                    user_id,
                    is_active
             FROM professor_registry

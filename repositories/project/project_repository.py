@@ -67,7 +67,7 @@ def _build_projects_where_clause(
                     FROM project_course_links pcl
                     JOIN courses c ON c.id = pcl.course_id
                     WHERE pcl.project_id = p.id
-                      AND c.unit_id = ANY({unidade_ids_placeholder}::BIGINT[])
+                      AND c.offering_unit_id = ANY({unidade_ids_placeholder}::BIGINT[])
                 )
             )
             """
@@ -247,7 +247,7 @@ async def get_public_project_by_id(conn: asyncpg.Connection, project_id: int) ->
                     SELECT jsonb_agg(
                         jsonb_build_object(
                             'id', c.id,
-                            'unit_id', c.unit_id,
+                            'offering_unit_id', c.offering_unit_id,
                             'name', c.name,
                             'level', c.level,
                             'code', c.code,
@@ -529,7 +529,7 @@ async def update_managed_project_fields(
                     SELECT jsonb_agg(
                         jsonb_build_object(
                             'id', c.id,
-                            'unit_id', c.unit_id,
+                            'offering_unit_id', c.offering_unit_id,
                             'name', c.name,
                             'level', c.level,
                             'code', c.code,
