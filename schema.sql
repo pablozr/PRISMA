@@ -53,6 +53,20 @@ CREATE TABLE professor_registry (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE project_types (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  slug TEXT NOT NULL UNIQUE CHECK (slug IN ('extensao', 'iniciacao_cientifica')),
+  is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO project_types (name, slug, is_enabled)
+VALUES
+  ('Extensao', 'extensao', TRUE),
+  ('Iniciacao Cientifica', 'iniciacao_cientifica', TRUE);
+
 
 CREATE TABLE projects (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -64,6 +78,7 @@ CREATE TABLE projects (
   owner_professor_id BIGINT NOT NULL REFERENCES professor_registry(id),
   executing_unit_id BIGINT REFERENCES organizational_units(id),
   source_import_batch_id BIGINT REFERENCES import_batches(id),
+  project_type_id BIGINT REFERENCES project_types(id),
   status TEXT NOT NULL CHECK (status IN ('draft', 'published', 'archived')),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   starts_at DATE,
@@ -116,6 +131,22 @@ CREATE TABLE project_course_links (
   project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   course_id BIGINT NOT NULL REFERENCES courses(id),
   PRIMARY KEY (project_id, course_id)
+);
+
+CREATE TABLE project_assignments (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  description TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE project_assignment_courses (
+  project_assignment_id BIGINT NOT NULL REFERENCES project_assignments(id) ON DELETE CASCADE,
+  course_id BIGINT NOT NULL REFERENCES courses(id),
+  PRIMARY KEY (project_assignment_id, course_id)
 );
 
 CREATE TABLE import_row_errors (
@@ -205,6 +236,9 @@ CREATE INDEX idx_projects_owner_professor
 CREATE INDEX idx_projects_executing_unit
   ON projects(executing_unit_id);
 
+CREATE INDEX idx_projects_type
+  ON projects(project_type_id);
+
 CREATE INDEX idx_org_units_parent
   ON organizational_units(parent_unit_id);
 
@@ -216,6 +250,12 @@ CREATE INDEX idx_project_area_links_area
 
 CREATE INDEX idx_project_course_links_course
   ON project_course_links(course_id);
+
+CREATE INDEX idx_project_assignments_project
+  ON project_assignments(project_id, is_active, sort_order, created_at DESC);
+
+CREATE INDEX idx_project_assignment_courses_course
+  ON project_assignment_courses(course_id);
 
 CREATE INDEX idx_import_batches_ref
   ON import_batches(reference_year, reference_term);
