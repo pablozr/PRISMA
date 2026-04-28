@@ -121,8 +121,13 @@ class ProjectUpdateRequest(BaseProjectRequestModel):
         min_length=PROJECT_DESCRIPTION_MIN_LENGTH,
         max_length=PROJECT_DESCRIPTION_MAX_LENGTH,
     )
+    descricao_curta: Optional[str] = Field(
+        default=None,
+        min_length=PROJECT_DESCRIPTION_MIN_LENGTH,
+        max_length=PROJECT_DESCRIPTION_MAX_LENGTH,
+    )
 
-    @field_validator("titulo", "descricao")
+    @field_validator("titulo", "descricao", "descricao_curta")
     @classmethod
     def strip_text(cls, value: Optional[str]) -> Optional[str]:
         if value is None:

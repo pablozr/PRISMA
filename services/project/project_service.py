@@ -241,7 +241,7 @@ async def update_my_project(
             return service_response(False, "Usuario autenticado invalido.")
 
         user_id, user_role = auth_context
-        allowed_columns = {"titulo", "descricao"}
+        allowed_columns = {"titulo", "descricao", "descricao_curta"}
         filtered = {k: v for k, v in data.model_dump(exclude_unset=True).items() if k in allowed_columns}
 
         if not filtered:
@@ -250,6 +250,7 @@ async def update_my_project(
         db_column_map = {
             "titulo": "title",
             "descricao": "full_description",
+            "descricao_curta": "short_description",
         }
 
         allowed_fields = {

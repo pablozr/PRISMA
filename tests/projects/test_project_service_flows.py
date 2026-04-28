@@ -131,7 +131,11 @@ def test_update_my_project_maps_fields_and_updates(monkeypatch: pytest.MonkeyPat
     update_mock = AsyncMock(return_value={"id": 22, "title": "Novo titulo"})
     monkeypatch.setattr(project_service, "update_managed_project_fields", update_mock)
 
-    payload = ProjectUpdateRequest(titulo="Novo titulo", descricao="Descricao valida com tamanho")
+    payload = ProjectUpdateRequest(
+        titulo="Novo titulo",
+        descricao="Descricao valida com tamanho",
+        descricao_curta="Resumo valido do projeto",
+    )
     conn = object()
 
     result = asyncio.run(
@@ -153,6 +157,7 @@ def test_update_my_project_maps_fields_and_updates(monkeypatch: pytest.MonkeyPat
         allowed_fields={
             "title": "Novo titulo",
             "full_description": "Descricao valida com tamanho",
+            "short_description": "Resumo valido do projeto",
         },
     )
 

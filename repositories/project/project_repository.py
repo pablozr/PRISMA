@@ -22,6 +22,7 @@ ORDER_BY_MAP: dict[ProjectSortOption, str] = {
 
 MANAGED_PROJECT_UPDATE_COLUMNS = {
     "title",
+    "short_description",
     "full_description",
 }
 
@@ -196,7 +197,31 @@ async def get_public_projects(
                     ORDER BY pcl.course_id
                 ),
                 ARRAY[]::BIGINT[]
-            ) AS course_ids
+            ) AS course_ids,
+            COALESCE(
+                (
+                    SELECT jsonb_agg(
+                        jsonb_build_object(
+                            'atribuicao_id', pa.id,
+                            'projeto_id', pa.project_id,
+                            'descricao', pa.description,
+                            'curso_ids', COALESCE(
+                                (
+                                    SELECT array_agg(pac.course_id ORDER BY pac.course_id)
+                                    FROM project_assignment_courses pac
+                                    WHERE pac.project_assignment_id = pa.id
+                                ),
+                                ARRAY[]::BIGINT[]
+                            )
+                        )
+                        ORDER BY pa.sort_order ASC, pa.created_at DESC
+                    )
+                    FROM project_assignments pa
+                    WHERE pa.project_id = p.id
+                      AND pa.is_active = TRUE
+                ),
+                '[]'::jsonb
+            ) AS atribuicoes
         FROM projects p
         LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
         LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
@@ -294,7 +319,31 @@ async def get_public_project_by_id(conn: asyncpg.Connection, project_id: int) ->
                     WHERE pi.project_id = p.id
                 ),
                 '[]'::jsonb
-            ) AS imagens
+            ) AS imagens,
+            COALESCE(
+                (
+                    SELECT jsonb_agg(
+                        jsonb_build_object(
+                            'atribuicao_id', pa.id,
+                            'projeto_id', pa.project_id,
+                            'descricao', pa.description,
+                            'curso_ids', COALESCE(
+                                (
+                                    SELECT array_agg(pac.course_id ORDER BY pac.course_id)
+                                    FROM project_assignment_courses pac
+                                    WHERE pac.project_assignment_id = pa.id
+                                ),
+                                ARRAY[]::BIGINT[]
+                            )
+                        )
+                        ORDER BY pa.sort_order ASC, pa.created_at DESC
+                    )
+                    FROM project_assignments pa
+                    WHERE pa.project_id = p.id
+                      AND pa.is_active = TRUE
+                ),
+                '[]'::jsonb
+            ) AS atribuicoes
         FROM projects p
         LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
         LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
@@ -436,7 +485,31 @@ async def get_user_managed_projects(
                     ORDER BY pcl.course_id
                 ),
                 ARRAY[]::BIGINT[]
-            ) AS course_ids
+            ) AS course_ids,
+            COALESCE(
+                (
+                    SELECT jsonb_agg(
+                        jsonb_build_object(
+                            'atribuicao_id', pa.id,
+                            'projeto_id', pa.project_id,
+                            'descricao', pa.description,
+                            'curso_ids', COALESCE(
+                                (
+                                    SELECT array_agg(pac.course_id ORDER BY pac.course_id)
+                                    FROM project_assignment_courses pac
+                                    WHERE pac.project_assignment_id = pa.id
+                                ),
+                                ARRAY[]::BIGINT[]
+                            )
+                        )
+                        ORDER BY pa.sort_order ASC, pa.created_at DESC
+                    )
+                    FROM project_assignments pa
+                    WHERE pa.project_id = p.id
+                      AND pa.is_active = TRUE
+                ),
+                '[]'::jsonb
+            ) AS atribuicoes
         FROM projects p
         LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
         LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
@@ -580,7 +653,31 @@ async def update_managed_project_fields(
                     WHERE pi.project_id = up.id
                 ),
                 '[]'::jsonb
-            ) AS imagens
+            ) AS imagens,
+            COALESCE(
+                (
+                    SELECT jsonb_agg(
+                        jsonb_build_object(
+                            'atribuicao_id', pa.id,
+                            'projeto_id', pa.project_id,
+                            'descricao', pa.description,
+                            'curso_ids', COALESCE(
+                                (
+                                    SELECT array_agg(pac.course_id ORDER BY pac.course_id)
+                                    FROM project_assignment_courses pac
+                                    WHERE pac.project_assignment_id = pa.id
+                                ),
+                                ARRAY[]::BIGINT[]
+                            )
+                        )
+                        ORDER BY pa.sort_order ASC, pa.created_at DESC
+                    )
+                    FROM project_assignments pa
+                    WHERE pa.project_id = up.id
+                      AND pa.is_active = TRUE
+                ),
+                '[]'::jsonb
+            ) AS atribuicoes
         FROM updated_project up
         LEFT JOIN professor_registry pr ON pr.id = up.owner_professor_id
         LEFT JOIN organizational_units ou ON ou.id = up.executing_unit_id
