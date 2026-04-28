@@ -1,9 +1,9 @@
 import asyncpg
 import redis
 from fastapi import APIRouter, Request, Depends
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, RedirectResponse
 
-from core.config.config import COOKIE_AUTH, COOKIE_AUTH_REFRESH, COOKIE_AUTH_RESET, RESET_COOKIE_MAX_AGE
+from core.config.config import COOKIE_AUTH, COOKIE_AUTH_REFRESH, COOKIE_AUTH_RESET, RESET_COOKIE_MAX_AGE, settings
 from core.postgresql.postgresql import postgresql
 from core.rabbitmq.rabbitmq import rabbitmq
 from core.redis.redis_cache import redis_cache
@@ -20,6 +20,8 @@ from schemas.auth.auth import (
 )
 from services.auth import auth_service
 from services.auth.auth_service import (
+    google_oauth_callback as auth_google_oauth_callback,
+    google_oauth_start as auth_google_oauth_start,
     google_login as auth_google_login,
     login as auth_login,
     logout as auth_logout,
@@ -29,66 +31,7 @@ from services.auth.auth_service import (
 router = APIRouter()
 
 
-@router.post("/login", dependencies=LOGIN_RATE_LIMIT_DEPS)
-async def login(
-        data: UserLoginRequest,
-        conn: asyncpg.Connection = Depends(postgresql.get_db),
-        redis_client: redis.Redis = Depends(redis_cache.get_redis),
-):
-    response = await auth_login(conn, redis_client, data)
-
-    if not response["status"]:
-        return JSONResponse(status_code=400, content={"detail": response["message"]})
-
-    access_token = response["data"].pop("accessToken")
-    refresh_token = response["data"].pop("refreshToken")
-
-    resp = JSONResponse(status_code=200, content={"message": response["message"], "data": response["data"]})
-    resp.set_cookie(
-        key=COOKIE_AUTH,
-        value=access_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        path="/",
-        max_age=900,
-    )
-
-    resp.set_cookie(
-        key=COOKIE_AUTH_REFRESH,
-        value=refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        path="/",
-        max_age=604800,
-    )
-
-    return resp
-
-
-@router.post("/google/login", dependencies=LOGIN_RATE_LIMIT_DEPS)
-async def google_login(
-        data: UserLoginGoogleRequest,
-        conn: asyncpg.Connection = Depends(postgresql.get_db),
-        redis_client: redis.Redis = Depends(redis_cache.get_redis),
-):
-    response = await auth_google_login(conn, redis_client, data)
-
-    if not response["status"]:
-        return JSONResponse(status_code=400, content={"detail": response["message"]})
-
-    access_token = response["data"].pop("accessToken")
-    refresh_token = response["data"].pop("refreshToken")
-
-    session_id = response["data"].pop("sessionId", None)
-    if not session_id:
-        try:
-            session_id = decode_access_token(access_token).get("sessionId")
-        except Exception:
-            session_id = None
-
-    resp = JSONResponse(status_code=200, content={"message": response["message"], "data": response["data"]})
+def _set_auth_cookies(resp: JSONResponse | RedirectResponse, access_token: str, refresh_token: str, session_id: str | None = None) -> None:
     resp.set_cookie(
         key=COOKIE_AUTH,
         value=access_token,
@@ -120,7 +63,87 @@ async def google_login(
             max_age=604800,
         )
 
+
+@router.post("/login", dependencies=LOGIN_RATE_LIMIT_DEPS)
+async def login(
+        data: UserLoginRequest,
+        conn: asyncpg.Connection = Depends(postgresql.get_db),
+        redis_client: redis.Redis = Depends(redis_cache.get_redis),
+):
+    response = await auth_login(conn, redis_client, data)
+
+    if not response["status"]:
+        return JSONResponse(status_code=400, content={"detail": response["message"]})
+
+    access_token = response["data"].pop("accessToken")
+    refresh_token = response["data"].pop("refreshToken")
+
+    resp = JSONResponse(status_code=200, content={"message": response["message"], "data": response["data"]})
+    _set_auth_cookies(resp, access_token, refresh_token)
+
     return resp
+
+
+@router.post("/google/login", dependencies=LOGIN_RATE_LIMIT_DEPS)
+async def google_login(
+        data: UserLoginGoogleRequest,
+        conn: asyncpg.Connection = Depends(postgresql.get_db),
+        redis_client: redis.Redis = Depends(redis_cache.get_redis),
+):
+    response = await auth_google_login(conn, redis_client, data)
+
+    if not response["status"]:
+        return JSONResponse(status_code=400, content={"detail": response["message"]})
+
+    access_token = response["data"].pop("accessToken")
+    refresh_token = response["data"].pop("refreshToken")
+
+    session_id = response["data"].pop("sessionId", None)
+    if not session_id:
+        try:
+            session_id = decode_access_token(access_token).get("sessionId")
+        except Exception:
+            session_id = None
+
+    resp = JSONResponse(status_code=200, content={"message": response["message"], "data": response["data"]})
+    _set_auth_cookies(resp, access_token, refresh_token, session_id)
+
+    return resp
+
+
+@router.get("/google/start", dependencies=LOGIN_RATE_LIMIT_DEPS)
+async def google_oauth_start(redis_client: redis.Redis = Depends(redis_cache.get_redis)):
+    response = await auth_google_oauth_start(redis_client)
+    if not response["status"]:
+        return RedirectResponse(settings.FRONTEND_AUTH_ERROR_URL, status_code=302)
+
+    return RedirectResponse(response["data"]["authorizationUrl"], status_code=302)
+
+
+@router.get("/google/callback", dependencies=LOGIN_RATE_LIMIT_DEPS)
+async def google_oauth_callback(
+        code: str | None = None,
+        state: str | None = None,
+        conn: asyncpg.Connection = Depends(postgresql.get_db),
+        redis_client: redis.Redis = Depends(redis_cache.get_redis),
+):
+    if not code or not state:
+        return RedirectResponse(settings.FRONTEND_AUTH_ERROR_URL, status_code=302)
+
+    response = await auth_google_oauth_callback(conn, redis_client, code, state)
+    if not response["status"]:
+        return RedirectResponse(settings.FRONTEND_AUTH_ERROR_URL, status_code=302)
+
+    access_token = response["data"].get("accessToken")
+    refresh_token = response["data"].get("refreshToken")
+    session_id = response["data"].get("sessionId")
+
+    if not access_token or not refresh_token:
+        return RedirectResponse(settings.FRONTEND_AUTH_ERROR_URL, status_code=302)
+
+    redirect_response = RedirectResponse(settings.FRONTEND_AUTH_SUCCESS_URL, status_code=302)
+    _set_auth_cookies(redirect_response, access_token, refresh_token, session_id)
+    return redirect_response
 
 
 @router.get("/me")
@@ -179,36 +202,7 @@ async def refresh_token(request: Request, redis_client: redis.Redis = Depends(re
             session_id = None
 
     resp = JSONResponse(status_code=200, content={"message": response["message"], "data": response["data"]})
-    resp.set_cookie(
-        key=COOKIE_AUTH,
-        value=access_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        path="/",
-        max_age=900,
-    )
-
-    resp.set_cookie(
-        key=COOKIE_AUTH_REFRESH,
-        value=refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        path="/",
-        max_age=604800,
-    )
-
-    if session_id:
-        resp.set_cookie(
-            key="session_id",
-            value=session_id,
-            httponly=True,
-            secure=True,
-            samesite="lax",
-            path="/",
-            max_age=604800,
-        )
+    _set_auth_cookies(resp, access_token, refresh_token, session_id)
 
     return resp
 
