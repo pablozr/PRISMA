@@ -1,10 +1,15 @@
+import asyncio
 import secrets
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlencode
 
 import aio_pika
 import asyncpg
 import redis
+import requests
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 
 from core.config.config import (
     EMAIL_FROM,
@@ -35,6 +40,8 @@ from services.cache import cache_service
 from services.queue import queue_service
 
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
+GOOGLE_AUTH_BASE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 
 
 def _extract_user_identity(user: dict) -> tuple[int, str, str]:
@@ -92,6 +99,70 @@ async def _login_success_response(user: dict, redis_client: redis.Redis) -> dict
         message="Login successful",
         data={"accessToken": access_token, "refreshToken": refresh_token},
     )
+
+
+def _build_google_auth_url(state: str, nonce: str) -> str:
+    query_params = {
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "nonce": nonce,
+        "prompt": "select_account",
+        "access_type": "offline",
+        "include_granted_scopes": "true",
+    }
+    return f"{GOOGLE_AUTH_BASE_URL}?{urlencode(query_params)}"
+
+
+async def _exchange_google_code_for_tokens(code: str) -> dict:
+    payload = {
+        "code": code,
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "client_secret": settings.GOOGLE_CLIENT_SECRET,
+        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }
+
+    response = await asyncio.to_thread(
+        requests.post,
+        GOOGLE_TOKEN_URL,
+        data=payload,
+        timeout=10,
+    )
+    if response.status_code != 200:
+        google_error = None
+        try:
+            google_error = response.json()
+        except Exception:
+            google_error = response.text
+        raise ValueError(f"Google token exchange failed: {google_error}")
+    return response.json()
+
+
+def _verify_google_id_token_with_nonce(raw_id_token: str, expected_nonce: str) -> dict:
+    token_payload = id_token.verify_oauth2_token(
+        raw_id_token,
+        google_requests.Request(),
+        settings.GOOGLE_CLIENT_ID,
+    )
+
+    issuer = token_payload.get("iss")
+    if issuer not in ("accounts.google.com", "https://accounts.google.com"):
+        raise ValueError("Google issuer invalido")
+
+    if token_payload.get("nonce") != expected_nonce:
+        raise ValueError("Google nonce invalido")
+
+    if token_payload.get("email_verified") is not True:
+        raise ValueError("Email Google nao verificado")
+
+    email = token_payload.get("email")
+    if not email or not is_allowed_domain(email, token_payload.get("hd")):
+        raise ValueError("Dominio de email nao permitido")
+
+    return token_payload
 
 
 async def _create_professor_user_from_registry(
@@ -256,6 +327,72 @@ async def google_login(
             return service_response(status=False, message="Usuario nao autorizado")
 
         return await _login_success_response(user, redis_client)
+    except Exception as e:
+        logger.exception(e)
+        return service_response(status=False, message="Erro interno")
+
+
+async def google_oauth_start(redis_client: redis.Redis) -> dict:
+    try:
+        state = secrets.token_urlsafe(32)
+        nonce = secrets.token_urlsafe(32)
+
+        await cache_service.set_by_key(
+            key=f"google_oauth_state:{state}",
+            ttl_seconds=settings.GOOGLE_OAUTH_STATE_TTL_SECONDS,
+            value={"nonce": nonce},
+            redis_client=redis_client,
+        )
+
+        return service_response(
+            status=True,
+            message="Google OAuth URL generated",
+            data={"authorizationUrl": _build_google_auth_url(state, nonce)},
+        )
+    except Exception as e:
+        logger.exception(e)
+        return service_response(status=False, message="Erro interno")
+
+
+async def google_oauth_callback(
+        conn: asyncpg.Connection,
+        redis_client: redis.Redis,
+        code: str,
+        state: str,
+) -> dict:
+    try:
+        cache_key = f"google_oauth_state:{state}"
+        oauth_state = await cache_service.get_by_key(cache_key, redis_client)
+        if not oauth_state or not oauth_state.get("nonce"):
+            return service_response(status=False, message="Estado OAuth invalido")
+
+        await cache_service.delete_by_key(cache_key, redis_client)
+        token_response = await _exchange_google_code_for_tokens(code)
+        raw_id_token = token_response.get("id_token")
+        if not raw_id_token:
+            return service_response(status=False, message="Google token invalido")
+
+        google_user = _verify_google_id_token_with_nonce(raw_id_token, oauth_state["nonce"])
+        user = await _find_or_create_google_user(conn, google_user)
+        if not user:
+            return service_response(status=False, message="Usuario nao autorizado")
+
+        login_response = await _login_success_response(user, redis_client)
+        if not login_response["status"]:
+            return login_response
+
+        try:
+            session_id = decode_access_token(login_response["data"]["accessToken"]).get("sessionId")
+        except Exception:
+            session_id = None
+
+        if session_id:
+            login_response["data"]["sessionId"] = session_id
+
+        return login_response
+    except ValueError as e:
+        logger.error(str(e))
+        return service_response(status=False, message=str(e))
     except Exception as e:
         logger.exception(e)
         return service_response(status=False, message="Erro interno")
