@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
     GOOGLE_CLIENT_ID: str
+    GOOGLE_CLIENT_SECRET: str
+    GOOGLE_REDIRECT_URI: str = "http://localhost:5685/api/v1/unirio/auth/google/callback"
+    FRONTEND_AUTH_SUCCESS_URL: str = "http://localhost:4200/"
+    FRONTEND_AUTH_ERROR_URL: str = "http://localhost:4200/signin"
+    ALLOWED_GOOGLE_DOMAINS: str = "edu.unirio.br"
+    GOOGLE_OAUTH_STATE_TTL_SECONDS: int = 300
 
     COOKIE_AUTH: str = "auth"
     COOKIE_AUTH_REFRESH: str = "refresh"

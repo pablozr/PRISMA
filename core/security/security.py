@@ -7,7 +7,7 @@ import redis
 from fastapi import Depends, HTTPException, Request
 from services.cache import cache_service
 
-from core.config.config import settings, COOKIE_AUTH_REFRESH, ALLOWED_EMAIL_DOMAIN
+from core.config.config import settings, COOKIE_AUTH_REFRESH
 from core.config.config import COOKIE_AUTH, COOKIE_AUTH_RESET, ROLE_RANK_BY_NAME
 from core.logger.logger import logger
 from core.postgresql.postgresql import postgresql
@@ -198,14 +198,25 @@ async def validate_token_wrapper(
     return await validate_token(request, conn, redis_client)
 
 
+def _get_allowed_google_domains() -> set[str]:
+    domains = {
+        domain.strip().lower()
+        for domain in settings.ALLOWED_GOOGLE_DOMAINS.split(",")
+        if domain.strip()
+    }
+    if settings.ALLOWED_EMAIL_DOMAIN.strip():
+        domains.add(settings.ALLOWED_EMAIL_DOMAIN.strip().lower())
+    return domains
+
+
 def is_allowed_domain(email: str, hd: Optional[str] = None) -> bool:
-    allowed_domain = ALLOWED_EMAIL_DOMAIN.lower().strip()
+    allowed_domains = _get_allowed_google_domains()
     domain = email.lower().split("@")[-1]
 
-    if hd and hd.lower().strip() != allowed_domain:
+    if hd and hd.lower().strip() not in allowed_domains:
         return False
 
-    return domain == allowed_domain
+    return domain in allowed_domains
 
 
 def require_minimum_rank(minimum_rank: int):
