@@ -38,6 +38,7 @@ VALUES
   ('ana.martins@demo.unirio.br', 'Ana Martins', 'professor', NULL, 'google-demo-prof-ana-martins', TRUE),
   ('bruno.costa@demo.unirio.br', 'Bruno Costa', 'professor', NULL, 'google-demo-prof-bruno-costa', TRUE),
   ('carla.souza@demo.unirio.br', 'Carla Souza', 'professor', NULL, 'google-demo-prof-carla-souza', TRUE),
+  ('pablo.farina@edu.unirio.br', 'Pablo Farina', 'professor', NULL, 'google-demo-prof-pablo-farina', TRUE),
   ('joao.aluno@demo.unirio.br', 'Joao Aluno Demo', 'student', NULL, 'google-demo-student-joao', TRUE)
 ON CONFLICT (institutional_email) DO UPDATE SET
   full_name = EXCLUDED.full_name,
@@ -235,7 +236,8 @@ BEGIN
   VALUES
     ('ana.martins@demo.unirio.br', 'Ana Martins', 'DEMO-SIAPE-001', v_dep_di_id, (SELECT id FROM users WHERE institutional_email = 'ana.martins@demo.unirio.br'), v_batch_id, TRUE),
     ('bruno.costa@demo.unirio.br', 'Bruno Costa', 'DEMO-SIAPE-002', v_dep_bio_id, (SELECT id FROM users WHERE institutional_email = 'bruno.costa@demo.unirio.br'), v_batch_id, TRUE),
-    ('carla.souza@demo.unirio.br', 'Carla Souza', 'DEMO-SIAPE-003', v_dep_edu_id, (SELECT id FROM users WHERE institutional_email = 'carla.souza@demo.unirio.br'), v_batch_id, TRUE)
+    ('carla.souza@demo.unirio.br', 'Carla Souza', 'DEMO-SIAPE-003', v_dep_edu_id, (SELECT id FROM users WHERE institutional_email = 'carla.souza@demo.unirio.br'), v_batch_id, TRUE),
+    ('pablo.farina@edu.unirio.br', 'Pablo Farina', 'DEMO-SIAPE-004', v_dep_di_id, (SELECT id FROM users WHERE institutional_email = 'pablo.farina@edu.unirio.br'), v_batch_id, TRUE)
   ON CONFLICT (institutional_email) DO UPDATE SET
     full_name = EXCLUDED.full_name,
     siape = EXCLUDED.siape,
