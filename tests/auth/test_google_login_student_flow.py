@@ -1,6 +1,6 @@
 import asyncio
 import os
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -12,7 +12,6 @@ os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client")
 
 from repositories.user.user_repository import create_student_user
-from schemas.auth.auth import UserLoginGoogleRequest
 from schemas.professor.professor import CreateProfessorSchema
 from schemas.user.user import CreateStudentUserSchema
 from services.auth import auth_service
@@ -268,157 +267,3 @@ def test_find_or_create_google_user_returns_none_when_student_creation_fails(mon
 
     assert result is None
 
-
-def test_google_login_returns_invalid_when_google_token_is_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(auth_service, "verify_google_token", lambda _: None)
-
-    result = asyncio.run(
-        auth_service.google_login(
-            object(),
-            object(),
-            UserLoginGoogleRequest(credential="invalid-credential"),
-        )
-    )
-
-    assert result["status"] is False
-    assert result["message"] == "Google token invalido"
-
-
-def test_google_login_returns_invalid_when_google_email_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(auth_service, "verify_google_token", lambda _: {"sub": "sub-missing-email"})
-
-    result = asyncio.run(
-        auth_service.google_login(
-            object(),
-            object(),
-            UserLoginGoogleRequest(credential="credential-without-email"),
-        )
-    )
-
-    assert result["status"] is False
-    assert result["message"] == "Google token invalido"
-
-
-def test_google_login_blocks_disallowed_domain(monkeypatch: pytest.MonkeyPatch) -> None:
-    conn = object()
-    redis_client = object()
-
-    google_payload = {
-        "email": "aluno@dominio-externo.com",
-        "sub": "sub-003",
-        "hd": "dominio-externo.com",
-    }
-
-    find_user_mock = AsyncMock()
-
-    monkeypatch.setattr(auth_service, "verify_google_token", lambda _: google_payload)
-    monkeypatch.setattr(auth_service, "is_allowed_domain", lambda _email, _hd=None: False)
-    monkeypatch.setattr(auth_service, "_find_or_create_google_user", find_user_mock)
-
-    result = asyncio.run(
-        auth_service.google_login(
-            conn,
-            redis_client,
-            UserLoginGoogleRequest(credential="valid-credential"),
-        )
-    )
-
-    assert result["status"] is False
-    assert result["message"] == "Dominio de email nao permitido"
-    find_user_mock.assert_not_awaited()
-
-
-def test_google_login_returns_unauthorized_when_user_cannot_be_resolved(monkeypatch: pytest.MonkeyPatch) -> None:
-    conn = object()
-    redis_client = object()
-
-    google_payload = {
-        "email": "desconhecido@edu.unirio.br",
-        "sub": "sub-004",
-        "hd": "edu.unirio.br",
-    }
-
-    find_user_mock = AsyncMock(return_value=None)
-    login_success_mock = AsyncMock()
-
-    monkeypatch.setattr(auth_service, "verify_google_token", lambda _: google_payload)
-    monkeypatch.setattr(auth_service, "is_allowed_domain", lambda _email, _hd=None: True)
-    monkeypatch.setattr(auth_service, "_find_or_create_google_user", find_user_mock)
-    monkeypatch.setattr(auth_service, "_login_success_response", login_success_mock)
-
-    result = asyncio.run(
-        auth_service.google_login(
-            conn,
-            redis_client,
-            UserLoginGoogleRequest(credential="valid-credential"),
-        )
-    )
-
-    assert result["status"] is False
-    assert result["message"] == "Usuario nao autorizado"
-    login_success_mock.assert_not_awaited()
-
-
-def test_google_login_returns_success_for_student_creation_flow(monkeypatch: pytest.MonkeyPatch) -> None:
-    conn = object()
-    redis_client = object()
-
-    google_payload = {
-        "email": "aluno@edu.unirio.br",
-        "sub": "sub-002",
-        "name": "Aluno Novo",
-        "hd": "edu.unirio.br",
-    }
-    resolved_user = {
-        "id": 9,
-        "institutional_email": "aluno@edu.unirio.br",
-        "role": "student",
-    }
-    login_response = {
-        "status": True,
-        "message": "Login successful",
-        "data": {"accessToken": "token-a", "refreshToken": "token-r"},
-    }
-
-    monkeypatch.setattr(auth_service, "verify_google_token", lambda _: google_payload)
-    monkeypatch.setattr(auth_service, "is_allowed_domain", lambda _email, _hd=None: True)
-
-    find_user_mock = AsyncMock(return_value=resolved_user)
-    login_success_mock = AsyncMock(return_value=login_response)
-
-    monkeypatch.setattr(auth_service, "_find_or_create_google_user", find_user_mock)
-    monkeypatch.setattr(auth_service, "_login_success_response", login_success_mock)
-
-    result = asyncio.run(
-        auth_service.google_login(
-            conn,
-            redis_client,
-            UserLoginGoogleRequest(credential="valid-credential"),
-        )
-    )
-
-    assert result == login_response
-    find_user_mock.assert_awaited_once_with(conn, google_payload)
-    login_success_mock.assert_awaited_once_with(resolved_user, redis_client)
-
-
-def test_google_login_returns_internal_error_when_exception_is_raised(monkeypatch: pytest.MonkeyPatch) -> None:
-    def raise_runtime_error(_credential: str) -> dict:
-        raise RuntimeError("google provider unavailable")
-
-    logger_exception_mock = Mock()
-
-    monkeypatch.setattr(auth_service, "verify_google_token", raise_runtime_error)
-    monkeypatch.setattr(auth_service.logger, "exception", logger_exception_mock)
-
-    result = asyncio.run(
-        auth_service.google_login(
-            object(),
-            object(),
-            UserLoginGoogleRequest(credential="credential"),
-        )
-    )
-
-    assert result["status"] is False
-    assert result["message"] == "Erro interno"
-    logger_exception_mock.assert_called_once()

@@ -4,7 +4,6 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field, field
 
 PASSWORD_MIN_LENGTH = 8
 PASSWORD_MAX_LENGTH = 128
-GOOGLE_CREDENTIAL_MAX_LENGTH = 4096
 REFRESH_TOKEN_MAX_LENGTH = 4096
 RESET_CODE_LENGTH = 6
 
@@ -37,22 +36,6 @@ class UserLoginRequest(BaseRequestModel):
         if not value.strip():
             raise ValueError("A senha e obrigatoria.")
         return value
-
-
-class UserLoginGoogleRequest(BaseRequestModel):
-    credential: str = Field(
-        min_length=1,
-        max_length=GOOGLE_CREDENTIAL_MAX_LENGTH,
-        validation_alias=AliasChoices("credential", "google_id_token"),
-    )
-
-    @field_validator("credential")
-    @classmethod
-    def validate_credential(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("Credential obrigatoria.")
-        return normalized
 
 
 class ForgetPasswordRequestModel(BaseRequestModel):

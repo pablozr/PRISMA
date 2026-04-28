@@ -14,7 +14,6 @@ from core.security.security import decode_access_token, validate_token_refresh, 
 from schemas.auth.auth import (
     ForgetPasswordRequestModel,
     UpdatePasswordRequest,
-    UserLoginGoogleRequest,
     UserLoginRequest,
     ValidateCodeRequest,
 )
@@ -22,7 +21,6 @@ from services.auth import auth_service
 from services.auth.auth_service import (
     google_oauth_callback as auth_google_oauth_callback,
     google_oauth_start as auth_google_oauth_start,
-    google_login as auth_google_login,
     login as auth_login,
     logout as auth_logout,
     refresh_token as auth_refresh,
@@ -80,33 +78,6 @@ async def login(
 
     resp = JSONResponse(status_code=200, content={"message": response["message"], "data": response["data"]})
     _set_auth_cookies(resp, access_token, refresh_token)
-
-    return resp
-
-
-@router.post("/google/login", dependencies=LOGIN_RATE_LIMIT_DEPS)
-async def google_login(
-        data: UserLoginGoogleRequest,
-        conn: asyncpg.Connection = Depends(postgresql.get_db),
-        redis_client: redis.Redis = Depends(redis_cache.get_redis),
-):
-    response = await auth_google_login(conn, redis_client, data)
-
-    if not response["status"]:
-        return JSONResponse(status_code=400, content={"detail": response["message"]})
-
-    access_token = response["data"].pop("accessToken")
-    refresh_token = response["data"].pop("refreshToken")
-
-    session_id = response["data"].pop("sessionId", None)
-    if not session_id:
-        try:
-            session_id = decode_access_token(access_token).get("sessionId")
-        except Exception:
-            session_id = None
-
-    resp = JSONResponse(status_code=200, content={"message": response["message"], "data": response["data"]})
-    _set_auth_cookies(resp, access_token, refresh_token, session_id)
 
     return resp
 

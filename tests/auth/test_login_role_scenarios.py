@@ -9,7 +9,7 @@ os.environ.setdefault("DB_NAME", "siepa")
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client")
 
-from schemas.auth.auth import UserLoginGoogleRequest, UserLoginRequest
+from schemas.auth.auth import UserLoginRequest
 from services.auth import auth_service
 
 
@@ -107,46 +107,3 @@ def test_login_common_rejects_professor_even_with_valid_password(monkeypatch) ->
     assert result["status"] is False
     verify_password_mock.assert_not_called()
     login_success_mock.assert_not_awaited()
-
-
-def test_google_login_returns_success_for_professor(monkeypatch) -> None:
-    conn = object()
-    redis_client = object()
-
-    google_payload = {
-        "email": "prof@edu.unirio.br",
-        "sub": "sub-professor",
-        "name": "Professor Teste",
-        "hd": "edu.unirio.br",
-    }
-    resolved_user = {
-        "id": 11,
-        "institutional_email": "prof@edu.unirio.br",
-        "role": "professor",
-    }
-    login_response = {
-        "status": True,
-        "message": "Login successful",
-        "data": {"accessToken": "token-a", "refreshToken": "token-r"},
-    }
-
-    monkeypatch.setattr(auth_service, "verify_google_token", lambda _credential: google_payload)
-    monkeypatch.setattr(auth_service, "is_allowed_domain", lambda _email, _hd=None: True)
-
-    find_user_mock = AsyncMock(return_value=resolved_user)
-    login_success_mock = AsyncMock(return_value=login_response)
-
-    monkeypatch.setattr(auth_service, "_find_or_create_google_user", find_user_mock)
-    monkeypatch.setattr(auth_service, "_login_success_response", login_success_mock)
-
-    result = asyncio.run(
-        auth_service.google_login(
-            conn,
-            redis_client,
-            UserLoginGoogleRequest(credential="valid-credential"),
-        )
-    )
-
-    assert result == login_response
-    find_user_mock.assert_awaited_once_with(conn, google_payload)
-    login_success_mock.assert_awaited_once_with(resolved_user, redis_client)

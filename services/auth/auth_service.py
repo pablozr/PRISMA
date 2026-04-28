@@ -15,7 +15,7 @@ from core.config.config import (
 )
 from core.logger.logger import logger
 from core.security.hashing import verify_password, hash_password
-from core.security.security import create_token, is_allowed_domain, verify_google_token, decode_access_token
+from core.security.security import create_token, decode_access_token
 from functions.utils.utils import service_response
 from repositories.professor.professor_repository import (
     create_user_professor_registry,
@@ -25,7 +25,6 @@ from repositories.user.user_repository import create_student_user, get_active_us
 from schemas.auth.auth import (
     ForgetPasswordRequestModel,
     UpdatePasswordRequest,
-    UserLoginGoogleRequest,
     UserLoginRequest,
     ValidateCodeRequest,
 )
@@ -222,41 +221,6 @@ async def refresh_token(redis_client: redis.Redis, refresh_token: str) -> dict:
     except ValueError as e:
         logger.error(str(e))
         return service_response(status=False, message="Token inválido")
-    except Exception as e:
-        logger.exception(e)
-        return service_response(status=False, message="Erro interno")
-
-
-async def google_login(
-        conn: asyncpg.Connection,
-        redis_client: redis.Redis,
-        google_data: UserLoginGoogleRequest,
-) -> dict:
-    """Realiza o login usando um token do Google. O processo inclui:
-    1. Verificar a validade do token do Google e extrair as informações do usuário.
-    2. Validar o domínio do email do usuário contra o dominio permitido.
-    3. Procurar um usuário existente com o email extraído. Se não existir,
-        criar um novo usuário, verificando primeiro se o email corresponde a um professor registrado,
-        caso pertença a um professor registrado, criar o usuário com base nas informações do registro do professor,
-        caso contrário, criar um usuário do tipo estudante.
-    """
-    try:
-        google_user = verify_google_token(google_data.credential)
-        if not google_user:
-            return service_response(status=False, message="Google token invalido")
-
-        email = google_user.get("email")
-        if not email:
-            return service_response(status=False, message="Google token invalido")
-
-        if not is_allowed_domain(email, google_user.get("hd")):
-            return service_response(status=False, message="Dominio de email nao permitido")
-
-        user = await _find_or_create_google_user(conn, google_user)
-        if not user:
-            return service_response(status=False, message="Usuario nao autorizado")
-
-        return await _login_success_response(user, redis_client)
     except Exception as e:
         logger.exception(e)
         return service_response(status=False, message="Erro interno")

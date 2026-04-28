@@ -4,7 +4,6 @@ from .auth import (
     ForgetPasswordRequestModel,
     RefreshTokenRequest,
     UpdatePasswordRequest,
-    UserLoginGoogleRequest,
     UserLoginRequest,
     ValidateCodeRequest,
 )
@@ -13,7 +12,6 @@ PasswordSendCodeRequest = ForgetPasswordRequestModel
 PasswordValidateCodeRequest = ValidateCodeRequest
 AuthLoginRequest = UserLoginRequest
 AuthRefreshRequest = RefreshTokenRequest
-AuthGoogleLoginRequest = UserLoginGoogleRequest
 
 
 class AuthSessionData(TypedDict):
@@ -32,12 +30,6 @@ class AuthLoginResponse(TypedDict):
 
 
 class AuthRefreshResponse(TypedDict):
-    status: bool
-    message: str
-    data: dict[str, AuthSessionData]
-
-
-class AuthGoogleLoginResponse(TypedDict):
     status: bool
     message: str
     data: dict[str, AuthSessionData]

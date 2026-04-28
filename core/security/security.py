@@ -13,8 +13,6 @@ from core.logger.logger import logger
 from core.postgresql.postgresql import postgresql
 from core.redis.redis_cache import redis_cache
 from services.user import user_service
-from google.oauth2 import id_token
-from google.auth.transport import requests
 
 
 def decode_access_token(token: str) -> dict:
@@ -33,16 +31,6 @@ def create_token(data: dict, expires_delta: timedelta | None = None) -> str:
     payload.update({"exp": expire})
 
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-
-
-def verify_google_token(token: str) -> dict | None:
-    try:
-        user = id_token.verify_oauth2_token(token, requests.Request(), settings.GOOGLE_CLIENT_ID)
-
-        return {**user}
-    except ValueError:
-        logger.error("Invalid Google token")
-        return None
 
 
 async def verify_token(
