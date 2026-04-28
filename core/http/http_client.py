@@ -1,6 +1,9 @@
-from typing import Optional
+from typing import Any
 
-import httpx
+try:
+    import httpx
+except ModuleNotFoundError:
+    httpx = None
 
 from core.config.config import (
     HTTP_CLIENT_MAX_CONNECTIONS,
@@ -10,11 +13,14 @@ from core.config.config import (
 
 
 class HTTPClient:
-    client: Optional[httpx.AsyncClient] = None
+    client: Any = None
 
     async def connect(self):
         if self.client is not None:
             return
+
+        if httpx is None:
+            raise RuntimeError("httpx dependency is required for HTTP client")
 
         limits = httpx.Limits(
             max_connections=HTTP_CLIENT_MAX_CONNECTIONS,
