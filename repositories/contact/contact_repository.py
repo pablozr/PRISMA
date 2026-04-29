@@ -109,3 +109,39 @@ async def get_contact_email_sent_by_me(
 
     rows = await conn.fetch(query, user_id)
     return [dict(row) for row in rows]
+
+
+async def mark_contact_email_request_as_sent(
+    conn: asyncpg.Connection,
+    request_id: int,
+) -> bool:
+    query = """
+            UPDATE email_dispatch_requests
+            SET status = 'sent',
+                sent_at = NOW()
+            WHERE id = $1
+              AND status IN ('queued', 'failed')
+            RETURNING id;
+            """
+
+    row = await conn.fetchrow(query, request_id)
+    return bool(row)
+
+
+async def mark_contact_email_request_as_failed(
+    conn: asyncpg.Connection,
+    request_id: int,
+    error_message: str,
+) -> bool:
+    query = """
+            UPDATE email_dispatch_requests
+            SET status = 'failed',
+                last_error = $2,
+                next_attempt_at = NOW() + INTERVAL '15 minutes'
+            WHERE id = $1
+              AND status IN ('queued', 'failed')
+            RETURNING id;
+            """
+
+    row = await conn.fetchrow(query, request_id, error_message)
+    return bool(row)
