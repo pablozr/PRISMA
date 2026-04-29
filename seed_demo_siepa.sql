@@ -38,7 +38,6 @@ VALUES
   ('ana.martins@demo.unirio.br', 'Ana Martins', 'professor', NULL, 'google-demo-prof-ana-martins', TRUE),
   ('bruno.costa@demo.unirio.br', 'Bruno Costa', 'professor', NULL, 'google-demo-prof-bruno-costa', TRUE),
   ('carla.souza@demo.unirio.br', 'Carla Souza', 'professor', NULL, 'google-demo-prof-carla-souza', TRUE),
-  ('pablo.farina@edu.unirio.br', 'Pablo Farina', 'professor', NULL, 'google-demo-prof-pablo-farina', TRUE),
   ('joao.aluno@demo.unirio.br', 'Joao Aluno Demo', 'student', NULL, 'google-demo-student-joao', TRUE)
 ON CONFLICT (institutional_email) DO UPDATE SET
   full_name = EXCLUDED.full_name,
@@ -67,7 +66,6 @@ DECLARE
   v_prof_ana_id BIGINT;
   v_prof_bruno_id BIGINT;
   v_prof_carla_id BIGINT;
-  v_prof_pablo_id BIGINT;
 
   v_extensao_id BIGINT;
   v_ic_type_id BIGINT;
@@ -237,8 +235,7 @@ BEGIN
   VALUES
     ('ana.martins@demo.unirio.br', 'Ana Martins', 'DEMO-SIAPE-001', v_dep_di_id, (SELECT id FROM users WHERE institutional_email = 'ana.martins@demo.unirio.br'), v_batch_id, TRUE),
     ('bruno.costa@demo.unirio.br', 'Bruno Costa', 'DEMO-SIAPE-002', v_dep_bio_id, (SELECT id FROM users WHERE institutional_email = 'bruno.costa@demo.unirio.br'), v_batch_id, TRUE),
-    ('carla.souza@demo.unirio.br', 'Carla Souza', 'DEMO-SIAPE-003', v_dep_edu_id, (SELECT id FROM users WHERE institutional_email = 'carla.souza@demo.unirio.br'), v_batch_id, TRUE),
-    ('pablo.farina@edu.unirio.br', 'Pablo Farina', 'DEMO-SIAPE-004', v_dep_di_id, (SELECT id FROM users WHERE institutional_email = 'pablo.farina@edu.unirio.br'), v_batch_id, TRUE)
+    ('carla.souza@demo.unirio.br', 'Carla Souza', 'DEMO-SIAPE-003', v_dep_edu_id, (SELECT id FROM users WHERE institutional_email = 'carla.souza@demo.unirio.br'), v_batch_id, TRUE)
   ON CONFLICT (institutional_email) DO UPDATE SET
     full_name = EXCLUDED.full_name,
     siape = EXCLUDED.siape,
@@ -251,7 +248,6 @@ BEGIN
   SELECT id INTO v_prof_ana_id FROM professor_registry WHERE institutional_email = 'ana.martins@demo.unirio.br';
   SELECT id INTO v_prof_bruno_id FROM professor_registry WHERE institutional_email = 'bruno.costa@demo.unirio.br';
   SELECT id INTO v_prof_carla_id FROM professor_registry WHERE institutional_email = 'carla.souza@demo.unirio.br';
-  SELECT id INTO v_prof_pablo_id FROM professor_registry WHERE institutional_email = 'pablo.farina@edu.unirio.br';
 
   SELECT id INTO v_extensao_id FROM project_types WHERE slug = 'extensao';
   SELECT id INTO v_ic_type_id FROM project_types WHERE slug = 'iniciacao_cientifica';
@@ -298,7 +294,7 @@ BEGIN
       'Oficinas introdutorias de tecnologia, cidadania digital e desenvolvimento web para a comunidade externa.',
       'Projeto de extensao voltado para aproximar estudantes, professores e comunidade externa por meio de oficinas praticas sobre tecnologia, cidadania digital, programacao introdutoria e boas praticas de uso da internet.',
       'pablo.farina@edu.unirio.br',
-      v_prof_pablo_id,
+      v_prof_ana_id,
       v_ic_id,
       v_batch_id,
       v_extensao_id,
@@ -315,7 +311,7 @@ BEGIN
       short_description = 'Oficinas introdutorias de tecnologia, cidadania digital e desenvolvimento web para a comunidade externa.',
       full_description = 'Projeto de extensao voltado para aproximar estudantes, professores e comunidade externa por meio de oficinas praticas sobre tecnologia, cidadania digital, programacao introdutoria e boas praticas de uso da internet.',
       contact_email = 'pablo.farina@edu.unirio.br',
-      owner_professor_id = v_prof_pablo_id,
+      owner_professor_id = v_prof_ana_id,
       executing_unit_id = v_ic_id,
       source_import_batch_id = v_batch_id,
       project_type_id = v_extensao_id,
@@ -341,7 +337,7 @@ BEGIN
       'Pesquisa sobre organizacao, busca e recomendacao de projetos academicos em portais institucionais.',
       'Projeto de iniciacao cientifica que investiga formas de estruturar catalogos academicos, melhorar busca textual e apoiar recomendacoes de projetos conforme areas, cursos e unidades institucionais.',
       'pablo.farina@edu.unirio.br',
-      v_prof_pablo_id,
+      v_prof_ana_id,
       v_ic_id,
       v_batch_id,
       v_ic_type_id,
