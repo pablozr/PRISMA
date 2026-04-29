@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
 from core.config.config import (
     PROJECTS_DEFAULT_PAGE,
@@ -13,7 +13,6 @@ from core.security import security
 from functions.utils.utils import default_response
 from schemas.project.project import ProjectUpdateRequest
 from schemas.project.project_assignment import ProjectAssignmentCreateRequest
-from schemas.project.project_image import ProjectLogoUploadRequest
 from services.project.project_service import (
     create_my_project_assignment,
     delete_my_project_assignment,
@@ -93,13 +92,14 @@ async def patch_my_project(
 @router.post("/projects/{project_id}/logo")
 async def post_project_logo(
     project_id: int,
-    payload: ProjectLogoUploadRequest,
+    image: UploadFile = File(...),
+    alt_text: Optional[str] = Form(default=None),
     user=Depends(security.require_professor_rank()),
     conn=Depends(postgresql.get_db),
 ):
     return await default_response(
         upload_project_logo,
-        [conn, user, project_id, payload.image_url, payload.alt_text],
+        [conn, user, project_id, image, alt_text],
     )
 
 

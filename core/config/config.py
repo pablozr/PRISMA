@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -80,6 +82,17 @@ class Settings(BaseSettings):
     PROJECTS_DEFAULT_PAGE_SIZE: int = 20
     PROJECTS_MAX_PAGE_SIZE: int = 100
     PROJECTS_DEFAULT_ONLY_ENABLED: bool = True
+    PROJECT_COVER_UPLOAD_DIR: str = Field(
+        default_factory=lambda: str(
+            Path(__file__).resolve().parents[3]
+            / "siepa-front"
+            / "src"
+            / "assets"
+            / "project-covers"
+        )
+    )
+    PROJECT_COVER_PUBLIC_PATH: str = "assets/project-covers"
+    PROJECT_COVER_MAX_BYTES: int = 5 * 1024 * 1024
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
@@ -116,6 +129,9 @@ PROJECTS_DEFAULT_ONLY_ENABLED = settings.PROJECTS_DEFAULT_ONLY_ENABLED
 PROJECTS_SORT_TITULO_ASC = settings.PROJECTS_SORT_TITULO_ASC
 PROJECTS_SORT_TITULO_DESC = settings.PROJECTS_SORT_TITULO_DESC
 PROJECTS_SORT_DATA_DESC = settings.PROJECTS_SORT_DATA_DESC
+PROJECT_COVER_UPLOAD_DIR = settings.PROJECT_COVER_UPLOAD_DIR
+PROJECT_COVER_PUBLIC_PATH = settings.PROJECT_COVER_PUBLIC_PATH
+PROJECT_COVER_MAX_BYTES = settings.PROJECT_COVER_MAX_BYTES
 
 HTTP_CLIENT_TIMEOUT_SECONDS = settings.HTTP_CLIENT_TIMEOUT_SECONDS
 HTTP_CLIENT_MAX_CONNECTIONS = settings.HTTP_CLIENT_MAX_CONNECTIONS

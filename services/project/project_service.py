@@ -1,10 +1,16 @@
 from math import ceil
+from pathlib import Path
 from typing import Optional
+from uuid import uuid4
 
 import asyncpg
+from fastapi import UploadFile
 from fastapi.encoders import jsonable_encoder
 
 from core.config.config import (
+    PROJECT_COVER_MAX_BYTES,
+    PROJECT_COVER_PUBLIC_PATH,
+    PROJECT_COVER_UPLOAD_DIR,
     PROJECTS_ALLOWED_SORT_OPTIONS,
     PROJECTS_DEFAULT_PAGE,
     PROJECTS_DEFAULT_PAGE_SIZE,
@@ -30,6 +36,34 @@ from repositories.project.project_repository import (
     update_managed_project_fields,
     upsert_project_cover_image,
 )
+
+
+ALLOWED_PROJECT_COVER_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
+
+
+def _delete_project_cover_file(image_url: Optional[str]) -> None:
+    if not image_url:
+        return
+
+    public_prefix = PROJECT_COVER_PUBLIC_PATH.strip("/").replace("\\", "/") + "/"
+    normalized_url = image_url.replace("\\", "/")
+    if not normalized_url.startswith(public_prefix):
+        return
+
+    filename = normalized_url.removeprefix(public_prefix)
+    if "/" in filename or "\\" in filename:
+        return
+
+    file_path = Path(PROJECT_COVER_UPLOAD_DIR) / filename
+    try:
+        file_path.unlink(missing_ok=True)
+    except OSError as e:
+        logger.warning("Nao foi possivel remover capa antiga do projeto: %s", e)
 
 
 async def list_projects(
@@ -282,9 +316,10 @@ async def upload_project_logo(
     conn: asyncpg.Connection,
     user: dict,
     project_id: int,
-    image_url: str,
+    image: UploadFile,
     alt_text: Optional[str],
 ) -> dict:
+    saved_file: Path | None = None
     try:
         if project_id <= 0:
             return service_response(False, "Projeto invalido.")
@@ -294,8 +329,29 @@ async def upload_project_logo(
             return service_response(False, "Usuario autenticado invalido.")
 
         user_id, user_role = auth_context
-        if not image_url:
-            return service_response(False, "URL da imagem invalida.")
+        normalized_alt_text = alt_text.strip() if alt_text else None
+        if normalized_alt_text and len(normalized_alt_text) > 255:
+            return service_response(False, "Texto alternativo deve ter no maximo 255 caracteres.")
+
+        content_type = (image.content_type or "").lower()
+        extension = ALLOWED_PROJECT_COVER_TYPES.get(content_type)
+        if not extension:
+            return service_response(False, "Formato de imagem invalido. Use JPG, PNG, WEBP ou GIF.")
+
+        contents = await image.read()
+        if not contents:
+            return service_response(False, "Imagem invalida.")
+
+        if len(contents) > PROJECT_COVER_MAX_BYTES:
+            return service_response(False, "Imagem muito grande. O tamanho maximo e 5MB.")
+
+        upload_dir = Path(PROJECT_COVER_UPLOAD_DIR)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        filename = f"{uuid4().hex}{extension}"
+        saved_file = upload_dir / filename
+        saved_file.write_bytes(contents)
+        image_url = f"{PROJECT_COVER_PUBLIC_PATH.strip('/')}/{filename}"
 
         logo = await upsert_project_cover_image(
             conn=conn,
@@ -303,10 +359,13 @@ async def upload_project_logo(
             user_id=user_id,
             user_role=user_role,
             image_url=image_url,
-            alt_text=alt_text,
+            alt_text=normalized_alt_text,
         )
         if not logo:
+            saved_file.unlink(missing_ok=True)
             return service_response(False, "Projeto nao encontrado ou sem permissao.")
+
+        _delete_project_cover_file(logo.get("previous_image_url"))
 
         return service_response(
             True,
@@ -314,6 +373,8 @@ async def upload_project_logo(
             data={"logo": jsonable_encoder(logo)},
         )
     except Exception as e:
+        if saved_file:
+            saved_file.unlink(missing_ok=True)
         logger.exception(e)
         return service_response(False, "Erro ao atualizar logo do projeto.")
 

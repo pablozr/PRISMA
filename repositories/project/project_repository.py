@@ -156,7 +156,6 @@ async def get_public_projects(
             p.process_code,
             p.title,
             p.short_description,
-            p.full_description,
             p.contact_email,
             p.owner_professor_id,
             pr.full_name AS owner_professor_name,
@@ -164,7 +163,6 @@ async def get_public_projects(
             ou.name AS executing_unit_name,
             ou.short_name AS executing_unit_short_name,
             ou.type AS executing_unit_type,
-            p.source_import_batch_id,
             p.project_type_id,
             pt.name AS project_type_name,
             pt.slug AS project_type_slug,
@@ -174,9 +172,7 @@ async def get_public_projects(
             p.starts_at,
             p.ends_at,
             p.created_at,
-            p.updated_at,
             p.published_at,
-            p.deactivated_at,
             pic.id AS cover_image_id,
             pic.image_url AS cover_image_url,
             pic.alt_text AS cover_image_alt_text,
@@ -197,31 +193,7 @@ async def get_public_projects(
                     ORDER BY pcl.course_id
                 ),
                 ARRAY[]::BIGINT[]
-            ) AS course_ids,
-            COALESCE(
-                (
-                    SELECT jsonb_agg(
-                        jsonb_build_object(
-                            'atribuicao_id', pa.id,
-                            'projeto_id', pa.project_id,
-                            'descricao', pa.description,
-                            'curso_ids', COALESCE(
-                                (
-                                    SELECT array_agg(pac.course_id ORDER BY pac.course_id)
-                                    FROM project_assignment_courses pac
-                                    WHERE pac.project_assignment_id = pa.id
-                                ),
-                                ARRAY[]::BIGINT[]
-                            )
-                        )
-                        ORDER BY pa.sort_order ASC, pa.created_at DESC
-                    )
-                    FROM project_assignments pa
-                    WHERE pa.project_id = p.id
-                      AND pa.is_active = TRUE
-                ),
-                '[]'::jsonb
-            ) AS atribuicoes
+            ) AS course_ids
         FROM projects p
         LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
         LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
@@ -714,6 +686,14 @@ async def upsert_project_cover_image(
               )
             LIMIT 1
         )
+        , old_cover AS (
+            SELECT pi.image_url
+            FROM project_images pi
+            JOIN managed_project mp ON mp.id = pi.project_id
+            WHERE pi.image_type = 'cover'
+            LIMIT 1
+        )
+        , upserted AS (
         INSERT INTO project_images (
             project_id,
             image_type,
@@ -730,7 +710,15 @@ async def upsert_project_cover_image(
             image_url = EXCLUDED.image_url,
             alt_text = EXCLUDED.alt_text,
             sort_order = 0
-        RETURNING project_id AS projeto_id, image_url, alt_text;
+        RETURNING project_id AS projeto_id, image_url, alt_text
+        )
+        SELECT
+            upserted.projeto_id,
+            upserted.image_url,
+            upserted.alt_text,
+            old_cover.image_url AS previous_image_url
+        FROM upserted
+        LEFT JOIN old_cover ON TRUE;
     """
 
     row = await conn.fetchrow(query, project_id, user_role, user_id, image_url, alt_text)

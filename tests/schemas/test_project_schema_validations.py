@@ -12,7 +12,6 @@ os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client")
 
 from schemas.project.project import ProjectListQueryRequest, ProjectUpdateRequest
 from schemas.project.project_assignment import ProjectAssignmentCreateRequest
-from schemas.project.project_image import ProjectLogoUploadRequest
 
 
 def test_project_update_request_strips_valid_fields() -> None:
@@ -25,11 +24,6 @@ def test_project_update_request_strips_valid_fields() -> None:
 def test_project_update_request_rejects_blank_after_strip() -> None:
     with pytest.raises(ValidationError):
         ProjectUpdateRequest(titulo="   ")
-
-
-def test_project_logo_upload_request_rejects_non_http_url() -> None:
-    with pytest.raises(ValidationError):
-        ProjectLogoUploadRequest(image_url="ftp://example.com/logo.png")
 
 
 def test_project_assignment_request_rejects_duplicate_course_ids() -> None:

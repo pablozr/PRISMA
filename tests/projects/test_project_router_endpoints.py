@@ -15,7 +15,6 @@ os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client")
 from routes.projects import router as projects_router_module
 from schemas.project.project import ProjectUpdateRequest
 from schemas.project.project_assignment import ProjectAssignmentCreateRequest
-from schemas.project.project_image import ProjectLogoUploadRequest
 
 
 def test_get_projects_forwards_filters_and_returns_200(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -135,11 +134,11 @@ def test_post_project_logo_forwards_payload_to_service(monkeypatch: pytest.Monke
     )
     monkeypatch.setattr(projects_router_module, "upload_project_logo", service_mock)
 
-    payload = ProjectLogoUploadRequest(image_url="https://example.com/logo.png", alt_text="logo")
-    response = asyncio.run(projects_router_module.post_project_logo(project_id=10, payload=payload, user=user, conn=conn))
+    image = object()
+    response = asyncio.run(projects_router_module.post_project_logo(project_id=10, image=image, alt_text="logo", user=user, conn=conn))
 
     assert response.status_code == 200
-    service_mock.assert_awaited_once_with(conn, user, 10, "https://example.com/logo.png", "logo")
+    service_mock.assert_awaited_once_with(conn, user, 10, image, "logo")
 
 
 def test_post_project_assignment_returns_201_on_success(monkeypatch: pytest.MonkeyPatch) -> None:
