@@ -5,26 +5,13 @@ from aio_pika.abc import AbstractChannel
 
 from core.config.config import EMAIL_FROM, EMAIL_QUEUE
 from core.logger.logger import logger
-from functions.utils.utils import service_response
+from functions.utils.utils import service_response, extract_authenticated_user_context
 from repositories.contact.contact_repository import (
     create_contact_email_request,
     get_contact_email_request_status,
 )
 from schemas.notification.email_dispatch_request import ContactEmailCreateRequest
 from services.queue import queue_service
-
-
-def _extract_contact_user(user: dict) -> tuple[int, str] | None:
-    user_id = user.get("id") or user.get("userId")
-    user_role = user.get("role")
-
-    if not isinstance(user_id, int) or user_id <= 0:
-        return None
-
-    if not isinstance(user_role, str) or not user_role.strip():
-        return None
-
-    return user_id, user_role.strip().lower()
 
 
 def _build_contact_email_html(body: str) -> str:
@@ -39,7 +26,7 @@ async def create_contact_email(
     data: ContactEmailCreateRequest,
 ) -> dict:
     try:
-        user_context = _extract_contact_user(user)
+        user_context = extract_authenticated_user_context(user)
         if user_context is None:
             return service_response(False, "Usuario autenticado invalido.")
 
@@ -97,7 +84,7 @@ async def get_contact_email_status(
     request_id: int,
 ) -> dict:
     try:
-        user_context = _extract_contact_user(user)
+        user_context = extract_authenticated_user_context(user)
         if user_context is None:
             return service_response(False, "Usuario autenticado invalido.")
 
