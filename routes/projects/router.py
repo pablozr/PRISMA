@@ -11,8 +11,13 @@ from core.config.config import (
 from core.postgresql.postgresql import postgresql
 from core.security import security
 from functions.utils.utils import default_response
-from schemas.project.project import ProjectUpdateRequest
+from schemas.project.project import (
+    ProjectUpdateRequest,
+    build_project_list_query_request,
+    build_project_managed_list_query_request,
+)
 from schemas.project.project_assignment import ProjectAssignmentCreateRequest
+from schemas.project.project_image import ProjectLogoUploadRequest
 from services.project.project_service import (
     create_my_project_assignment,
     delete_my_project_assignment,
@@ -43,14 +48,16 @@ async def get_projects(
         list_projects,
         [
             conn,
-            area_ids,
-            unidade_ids,
-            curso_ids,
-            ordenacao,
-            page,
-            page_size,
-            somente_habilitados,
-            q,
+            build_project_list_query_request(
+                q=q,
+                area_ids=area_ids,
+                unidade_ids=unidade_ids,
+                curso_ids=curso_ids,
+                ordenacao=ordenacao,
+                page=page,
+                page_size=page_size,
+                somente_habilitados=somente_habilitados,
+            ),
         ],
     )
 
@@ -73,7 +80,8 @@ async def get_my_projects(
     page_size: int = PROJECTS_DEFAULT_PAGE_SIZE,
     q: Optional[str] = Query(default=None),
 ):
-    return await default_response(list_my_projects, [conn, user, page, page_size, q])
+    query = build_project_managed_list_query_request(q=q, page=page, page_size=page_size)
+    return await default_response(list_my_projects, [conn, user, query])
 
 
 @router.patch("/projects/{project_id}")
@@ -97,9 +105,10 @@ async def post_project_logo(
     user=Depends(security.require_professor_rank()),
     conn=Depends(postgresql.get_db),
 ):
+    payload = ProjectLogoUploadRequest(image=image, alt_text=alt_text)
     return await default_response(
         upload_project_logo,
-        [conn, user, project_id, image, alt_text],
+        [conn, user, project_id, payload],
     )
 
 

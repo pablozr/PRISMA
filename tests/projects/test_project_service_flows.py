@@ -11,7 +11,7 @@ os.environ.setdefault("DB_NAME", "siepa")
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client")
 
-from schemas.project.project import ProjectUpdateRequest
+from schemas.project.project import ProjectListQueryRequest, ProjectUpdateRequest
 from services.project import project_service
 
 
@@ -28,30 +28,7 @@ class _DummyConn:
         return _DummyTransaction()
 
 
-def test_list_projects_rejects_invalid_sort_option(monkeypatch: pytest.MonkeyPatch) -> None:
-    repo_mock = AsyncMock()
-    monkeypatch.setattr(project_service, "get_public_projects", repo_mock)
-
-    result = asyncio.run(
-        project_service.list_projects(
-            conn=object(),
-            area_ids=None,
-            unidade_ids=None,
-            curso_ids=None,
-            ordenacao="invalida",
-            page=1,
-            page_size=10,
-            somente_habilitados=True,
-            q=None,
-        )
-    )
-
-    assert result["status"] is False
-    assert result["message"] == "Ordenacao invalida."
-    repo_mock.assert_not_awaited()
-
-
-def test_list_projects_normalizes_filters_and_pagination(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_list_projects_uses_normalized_query(monkeypatch: pytest.MonkeyPatch) -> None:
     repo_mock = AsyncMock(return_value=([{"id": 1, "title": "Projeto"}], 3))
     monkeypatch.setattr(project_service, "get_public_projects", repo_mock)
     conn = object()
@@ -59,14 +36,15 @@ def test_list_projects_normalizes_filters_and_pagination(monkeypatch: pytest.Mon
     result = asyncio.run(
         project_service.list_projects(
             conn=conn,
-            area_ids=[3, 3, -1],
-            unidade_ids=[5, 0, 5],
-            curso_ids=[8, -4, 8],
-            ordenacao=None,
-            page=0,
-            page_size=999,
-            somente_habilitados=True,
-            q="  ciencia  ",
+            query=ProjectListQueryRequest(
+                area_ids=[3],
+                unidade_ids=[5],
+                curso_ids=[8],
+                page=1,
+                page_size=100,
+                somente_habilitados=True,
+                q="ciencia",
+            ),
         )
     )
 
@@ -81,7 +59,7 @@ def test_list_projects_normalizes_filters_and_pagination(monkeypatch: pytest.Mon
         page=1,
         page_size=100,
         somente_habilitados=True,
-        q="  ciencia  ",
+        q="ciencia",
     )
 
 

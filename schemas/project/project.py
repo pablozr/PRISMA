@@ -1,7 +1,15 @@
 from datetime import date, datetime
-from typing import Literal, Optional, TypedDict
+from typing import List, Literal, Optional, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from core.config.config import (
+    PROJECTS_DEFAULT_ONLY_ENABLED,
+    PROJECTS_DEFAULT_PAGE,
+    PROJECTS_DEFAULT_PAGE_SIZE,
+    PROJECTS_DEFAULT_SORT,
+    PROJECTS_MAX_PAGE_SIZE,
+)
 
 PROJECT_TITLE_MIN_LENGTH = 3
 PROJECT_TITLE_MAX_LENGTH = 255
@@ -55,10 +63,10 @@ class ProjectListQueryRequest(BaseProjectRequestModel):
     area_ids: Optional[list[int]] = None
     unidade_ids: Optional[list[int]] = None
     curso_ids: Optional[list[int]] = None
-    ordenacao: Literal["titulo_asc", "titulo_desc", "data_desc"] = "data_desc"
-    page: int = Field(default=1, ge=1)
-    page_size: int = Field(default=20, ge=1, le=100)
-    somente_habilitados: bool = True
+    ordenacao: Literal["titulo_asc", "titulo_desc", "data_desc"] = PROJECTS_DEFAULT_SORT
+    page: int = Field(default=PROJECTS_DEFAULT_PAGE, ge=1)
+    page_size: int = Field(default=PROJECTS_DEFAULT_PAGE_SIZE, ge=1, le=PROJECTS_MAX_PAGE_SIZE)
+    somente_habilitados: bool = PROJECTS_DEFAULT_ONLY_ENABLED
 
     @field_validator("q")
     @classmethod
@@ -80,6 +88,51 @@ class ProjectListQueryRequest(BaseProjectRequestModel):
             raise ValueError("Os IDs devem ser inteiros positivos.")
 
         return normalized or None
+
+
+class ProjectManagedListQueryRequest(BaseProjectRequestModel):
+    q: Optional[str] = Field(default=None, min_length=1, max_length=PROJECT_SEARCH_MAX_LENGTH)
+    page: int = Field(default=PROJECTS_DEFAULT_PAGE, ge=1)
+    page_size: int = Field(default=PROJECTS_DEFAULT_PAGE_SIZE, ge=1, le=PROJECTS_MAX_PAGE_SIZE)
+
+    @field_validator("q")
+    @classmethod
+    def strip_query(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        return normalized or None
+
+
+def build_project_list_query_request(
+    q: Optional[str] = None,
+    area_ids: Optional[List[int]] = None,
+    unidade_ids: Optional[List[int]] = None,
+    curso_ids: Optional[List[int]] = None,
+    ordenacao: str = PROJECTS_DEFAULT_SORT,
+    page: int = PROJECTS_DEFAULT_PAGE,
+    page_size: int = PROJECTS_DEFAULT_PAGE_SIZE,
+    somente_habilitados: bool = PROJECTS_DEFAULT_ONLY_ENABLED,
+) -> ProjectListQueryRequest:
+    return ProjectListQueryRequest(
+        q=q,
+        area_ids=area_ids,
+        unidade_ids=unidade_ids,
+        curso_ids=curso_ids,
+        ordenacao=ordenacao,
+        page=page,
+        page_size=page_size,
+        somente_habilitados=somente_habilitados,
+    )
+
+
+def build_project_managed_list_query_request(
+    q: Optional[str] = None,
+    page: int = PROJECTS_DEFAULT_PAGE,
+    page_size: int = PROJECTS_DEFAULT_PAGE_SIZE,
+) -> ProjectManagedListQueryRequest:
+    return ProjectManagedListQueryRequest(q=q, page=page, page_size=page_size)
 
 
 class ProjectPaginationData(TypedDict):

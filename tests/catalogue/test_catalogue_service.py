@@ -12,9 +12,10 @@ os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client")
 
 from services.catalogue import catalogue_service
+from schemas.catalogue.catalogue import CatalogueCoursesQueryRequest, CataloguePaginationQueryRequest, CatalogueUnitsQueryRequest
 
 
-def test_get_unidades_normalizes_ids_and_sanitizes_pagination(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_unidades_uses_normalized_query(monkeypatch: pytest.MonkeyPatch) -> None:
     conn = object()
     repo_mock = AsyncMock(return_value=[{"id": 10, "name": "Unidade Teste"}])
     monkeypatch.setattr(catalogue_service, "get_all_unidades", repo_mock)
@@ -22,9 +23,7 @@ def test_get_unidades_normalizes_ids_and_sanitizes_pagination(monkeypatch: pytes
     result = asyncio.run(
         catalogue_service.get_unidades(
             conn,
-            centro_ids=[3, 2, 3, -5, 0],
-            limit=999,
-            offset=-20,
+            query=CatalogueUnitsQueryRequest(centro_ids=[2, 3], limit=100, offset=0),
         )
     )
 
@@ -42,7 +41,7 @@ def test_get_cursos_returns_failure_when_repository_is_empty(monkeypatch: pytest
     conn = object()
     monkeypatch.setattr(catalogue_service, "get_all_cursos", AsyncMock(return_value=[]))
 
-    result = asyncio.run(catalogue_service.get_cursos(conn, unidade_ids=None, limit=50, offset=0))
+    result = asyncio.run(catalogue_service.get_cursos(conn, query=CatalogueCoursesQueryRequest()))
 
     assert result["status"] is False
     assert result["data"] == []
@@ -57,7 +56,7 @@ def test_get_centros_returns_error_response_on_exception(monkeypatch: pytest.Mon
 
     monkeypatch.setattr(catalogue_service, "get_all_centros", raise_error)
 
-    result = asyncio.run(catalogue_service.get_centros(conn, limit=10, offset=0))
+    result = asyncio.run(catalogue_service.get_centros(conn, query=CataloguePaginationQueryRequest(limit=10, offset=0)))
 
     assert result["status"] is False
     assert result["data"] == []

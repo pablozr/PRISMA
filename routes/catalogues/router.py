@@ -4,6 +4,11 @@ from fastapi import APIRouter, Depends, Query
 
 from functions.utils.utils import default_response
 from core.postgresql.postgresql import postgresql
+from schemas.catalogue.catalogue import (
+    build_catalogue_courses_query_request,
+    build_catalogue_pagination_query_request,
+    build_catalogue_units_query_request,
+)
 from services.catalogue.catalogue_service import (
     get_areas_tematicas as service_get_areas_tematicas,
     get_cursos as service_get_cursos,
@@ -15,12 +20,14 @@ router = APIRouter()
 
 @router.get("/areas-tematicas")
 async def list_areas_tematicas(conn = Depends(postgresql.get_db), limit: int = 50, offset: int = 0):
-    return await default_response(service_get_areas_tematicas, [conn, limit, offset])
+    query = build_catalogue_pagination_query_request(limit=limit, offset=offset)
+    return await default_response(service_get_areas_tematicas, [conn, query])
 
 
 @router.get("/centros")
 async def list_centros(conn = Depends(postgresql.get_db), limit: int = 50, offset: int = 0):
-    return await default_response(service_get_centros, [conn, limit, offset])
+    query = build_catalogue_pagination_query_request(limit=limit, offset=offset)
+    return await default_response(service_get_centros, [conn, query])
 
 
 @router.get("/unidades")
@@ -30,7 +37,8 @@ async def list_unidades(
     limit: int = 50,
     offset: int = 0,
 ):
-    return await default_response(service_get_unidades, [conn, centro_ids, limit, offset])
+    query = build_catalogue_units_query_request(centro_ids=centro_ids, limit=limit, offset=offset)
+    return await default_response(service_get_unidades, [conn, query])
 
 
 @router.get("/cursos")
@@ -40,4 +48,5 @@ async def list_cursos(
     limit: int = 50,
     offset: int = 0,
 ):
-    return await default_response(service_get_cursos, [conn, unidade_ids, limit, offset])
+    query = build_catalogue_courses_query_request(unidade_ids=unidade_ids, limit=limit, offset=offset)
+    return await default_response(service_get_cursos, [conn, query])

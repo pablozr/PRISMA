@@ -37,7 +37,12 @@ def test_get_unidades_forwards_filters_and_pagination(monkeypatch: pytest.Monkey
     assert response.status_code == 200
     payload = json.loads(response.body.decode("utf-8"))
     assert payload["data"] == {"unidades": [{"id": 1}]}
-    service_mock.assert_awaited_once_with(conn, [1, 3], 10, 5)
+    service_mock.assert_awaited_once()
+    args = service_mock.await_args.args
+    assert args[0] is conn
+    assert args[1].centro_ids == [1, 3]
+    assert args[1].limit == 10
+    assert args[1].offset == 5
 
 
 def test_get_cursos_returns_400_on_service_failure(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -62,7 +67,11 @@ def test_list_centros_uses_default_pagination_when_not_provided(monkeypatch: pyt
     response = asyncio.run(catalogue_router_module.list_centros(conn=conn))
 
     assert response.status_code == 200
-    service_mock.assert_awaited_once_with(conn, 50, 0)
+    service_mock.assert_awaited_once()
+    args = service_mock.await_args.args
+    assert args[0] is conn
+    assert args[1].limit == 50
+    assert args[1].offset == 0
 
 def test_get_areas_tematicas_returns_500_when_service_crashes(
     monkeypatch: pytest.MonkeyPatch,

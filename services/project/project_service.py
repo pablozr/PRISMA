@@ -4,27 +4,20 @@ from typing import Optional
 from uuid import uuid4
 
 import asyncpg
-from fastapi import UploadFile
 from fastapi.encoders import jsonable_encoder
 
 from core.config.config import (
     PROJECT_COVER_MAX_BYTES,
     PROJECT_COVER_PUBLIC_PATH,
     PROJECT_COVER_UPLOAD_DIR,
-    PROJECTS_ALLOWED_SORT_OPTIONS,
-    PROJECTS_DEFAULT_PAGE,
-    PROJECTS_DEFAULT_PAGE_SIZE,
-    PROJECTS_DEFAULT_SORT,
-    PROJECTS_MAX_PAGE_SIZE,
 )
 from core.logger.logger import logger
 from functions.utils.utils import (
     extract_authenticated_user_context,
-    get_safe_limit_offset,
-    normalize_positive_int_list,
     service_response,
 )
-from schemas.project.project import ProjectUpdateRequest
+from schemas.project.project import ProjectListQueryRequest, ProjectManagedListQueryRequest, ProjectUpdateRequest
+from schemas.project.project_image import ProjectLogoUploadRequest
 from repositories.project.project_repository import (
     create_project_assignment,
     deactivate_project_assignment,
@@ -68,50 +61,23 @@ def _delete_project_cover_file(image_url: Optional[str]) -> None:
 
 async def list_projects(
     conn: asyncpg.Connection,
-    area_ids: Optional[list[int]],
-    unidade_ids: Optional[list[int]],
-    curso_ids: Optional[list[int]],
-    ordenacao: Optional[str],
-    page: int,
-    page_size: int,
-    somente_habilitados: bool,
-    q: Optional[str] = None,
+    query: ProjectListQueryRequest,
 ) -> dict:
     try:
-        sort_option = ordenacao or PROJECTS_DEFAULT_SORT
-        if sort_option not in PROJECTS_ALLOWED_SORT_OPTIONS:
-            return service_response(
-                False,
-                "Ordenacao invalida.",
-            )
-
-
-        safe_page = page if page > 0 else PROJECTS_DEFAULT_PAGE
-        requested_page_size = page_size if page_size > 0 else PROJECTS_DEFAULT_PAGE_SIZE
-        safe_page_size, _ = get_safe_limit_offset(
-            limit=requested_page_size,
-            offset=0,
-            max_limit=PROJECTS_MAX_PAGE_SIZE,
-            max_offset=0,
-        )
-        safe_area_ids = normalize_positive_int_list(area_ids)
-        safe_unidade_ids = normalize_positive_int_list(unidade_ids)
-        safe_curso_ids = normalize_positive_int_list(curso_ids)
-
         projects, total = await get_public_projects(
             conn=conn,
-            area_ids=safe_area_ids,
-            unidade_ids=safe_unidade_ids,
-            curso_ids=safe_curso_ids,
-            ordenacao=sort_option,
-            page=safe_page,
-            page_size=safe_page_size,
-            somente_habilitados=somente_habilitados,
-            q=q,
+            area_ids=query.area_ids,
+            unidade_ids=query.unidade_ids,
+            curso_ids=query.curso_ids,
+            ordenacao=query.ordenacao,
+            page=query.page,
+            page_size=query.page_size,
+            somente_habilitados=query.somente_habilitados,
+            q=query.q,
         )
         encoded_projects = jsonable_encoder(projects)
 
-        total_pages = ceil(total / safe_page_size) if total > 0 else 0
+        total_pages = ceil(total / query.page_size) if total > 0 else 0
 
         if not encoded_projects:
             return service_response(
@@ -120,8 +86,8 @@ async def list_projects(
                 data={
                     "projetos": [],
                     "paginacao": {
-                        "page": safe_page,
-                        "page_size": safe_page_size,
+                        "page": query.page,
+                        "page_size": query.page_size,
                         "total": total,
                         "total_pages": total_pages,
                     },
@@ -134,8 +100,8 @@ async def list_projects(
             data={
                 "projetos": encoded_projects,
                 "paginacao": {
-                    "page": safe_page,
-                    "page_size": safe_page_size,
+                    "page": query.page,
+                    "page_size": query.page_size,
                     "total": total,
                     "total_pages": total_pages,
                 },
@@ -196,9 +162,7 @@ async def list_project_assignments(conn: asyncpg.Connection, project_id: int) ->
 async def list_my_projects(
     conn: asyncpg.Connection,
     user: dict,
-    page: int,
-    page_size: int,
-    q: Optional[str] = None,
+    query: ProjectManagedListQueryRequest,
 ) -> dict:
     try:
         auth_context = extract_authenticated_user_context(user)
@@ -207,25 +171,16 @@ async def list_my_projects(
 
         user_id, user_role = auth_context
 
-        safe_page = page if page > 0 else PROJECTS_DEFAULT_PAGE
-        requested_page_size = page_size if page_size > 0 else PROJECTS_DEFAULT_PAGE_SIZE
-        safe_page_size, _ = get_safe_limit_offset(
-            limit=requested_page_size,
-            offset=0,
-            max_limit=PROJECTS_MAX_PAGE_SIZE,
-            max_offset=0,
-        )
-
         projects, total = await get_user_managed_projects(
             conn=conn,
             user_id=user_id,
             user_role=user_role,
-            page=safe_page,
-            page_size=safe_page_size,
-            q=q,
+            page=query.page,
+            page_size=query.page_size,
+            q=query.q,
         )
         encoded_projects = jsonable_encoder(projects)
-        total_pages = ceil(total / safe_page_size) if total > 0 else 0
+        total_pages = ceil(total / query.page_size) if total > 0 else 0
 
         if not encoded_projects:
             return service_response(
@@ -234,8 +189,8 @@ async def list_my_projects(
                 data={
                     "projetos": [],
                     "paginacao": {
-                        "page": safe_page,
-                        "page_size": safe_page_size,
+                        "page": query.page,
+                        "page_size": query.page_size,
                         "total": total,
                         "total_pages": total_pages,
                     },
@@ -248,8 +203,8 @@ async def list_my_projects(
             data={
                 "projetos": encoded_projects,
                 "paginacao": {
-                    "page": safe_page,
-                    "page_size": safe_page_size,
+                    "page": query.page,
+                    "page_size": query.page_size,
                     "total": total,
                     "total_pages": total_pages,
                 },
@@ -316,8 +271,7 @@ async def upload_project_logo(
     conn: asyncpg.Connection,
     user: dict,
     project_id: int,
-    image: UploadFile,
-    alt_text: Optional[str],
+    data: ProjectLogoUploadRequest,
 ) -> dict:
     saved_file: Path | None = None
     try:
@@ -329,10 +283,7 @@ async def upload_project_logo(
             return service_response(False, "Usuario autenticado invalido.")
 
         user_id, user_role = auth_context
-        normalized_alt_text = alt_text.strip() if alt_text else None
-        if normalized_alt_text and len(normalized_alt_text) > 255:
-            return service_response(False, "Texto alternativo deve ter no maximo 255 caracteres.")
-
+        image = data.image
         content_type = (image.content_type or "").lower()
         extension = ALLOWED_PROJECT_COVER_TYPES.get(content_type)
         if not extension:
@@ -359,7 +310,7 @@ async def upload_project_logo(
             user_id=user_id,
             user_role=user_role,
             image_url=image_url,
-            alt_text=normalized_alt_text,
+            alt_text=data.alt_text,
         )
         if not logo:
             saved_file.unlink(missing_ok=True)
@@ -398,8 +349,7 @@ async def create_my_project_assignment(
         if not descricao:
             return service_response(False, "Descricao da atribuicao invalida.")
 
-        normalized_course_ids = normalize_positive_int_list(curso_ids)
-        if not normalized_course_ids:
+        if not curso_ids:
             return service_response(False, "Informe ao menos um curso valido.")
 
         async with conn.transaction():
@@ -409,7 +359,7 @@ async def create_my_project_assignment(
                 user_id=user_id,
                 user_role=user_role,
                 descricao=descricao,
-                course_ids=normalized_course_ids,
+                course_ids=curso_ids,
             )
 
             if not assignment_result["has_project_access"]:

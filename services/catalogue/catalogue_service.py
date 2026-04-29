@@ -5,14 +5,17 @@ from repositories.catalogue.catalogue_repository import (
     get_all_cursos,
     get_all_unidades,
 )
-from functions.utils.utils import service_response, get_safe_limit_offset, normalize_positive_int_list
+from functions.utils.utils import service_response
 from core.logger.logger import logger
+from schemas.catalogue.catalogue import (
+    CatalogueCoursesQueryRequest,
+    CataloguePaginationQueryRequest,
+    CatalogueUnitsQueryRequest,
+)
 
-async def get_areas_tematicas(conn: asyncpg.Connection, limit: int, offset: int) -> dict:
+async def get_areas_tematicas(conn: asyncpg.Connection, query: CataloguePaginationQueryRequest) -> dict:
     try:
-        safe_limit, safe_offset = get_safe_limit_offset(limit, offset)
-
-        areas = await get_all_areas_tematicas(conn, limit=safe_limit, offset=safe_offset)
+        areas = await get_all_areas_tematicas(conn, limit=query.limit, offset=query.offset)
 
         if not areas:
             return service_response(False, "Sem áreas temáticas disponíveis", True, [])
@@ -23,11 +26,9 @@ async def get_areas_tematicas(conn: asyncpg.Connection, limit: int, offset: int)
         return service_response(False, "Erro ao recuperar áreas temáticas", True, [])
 
 
-async def get_centros(conn: asyncpg.Connection, limit: int, offset: int) -> dict:
+async def get_centros(conn: asyncpg.Connection, query: CataloguePaginationQueryRequest) -> dict:
     try:
-        safe_limit, safe_offset = get_safe_limit_offset(limit, offset)
-
-        centros = await get_all_centros(conn, limit=safe_limit, offset=safe_offset)
+        centros = await get_all_centros(conn, limit=query.limit, offset=query.offset)
 
         if not centros:
             return service_response(False, "Sem centros disponíveis", True, [])
@@ -40,19 +41,14 @@ async def get_centros(conn: asyncpg.Connection, limit: int, offset: int) -> dict
 
 async def get_unidades(
     conn: asyncpg.Connection,
-    centro_ids: list[int] | None,
-    limit: int,
-    offset: int,
+    query: CatalogueUnitsQueryRequest,
 ) -> dict:
     try:
-        safe_limit, safe_offset = get_safe_limit_offset(limit, offset)
-        normalized_centro_ids = normalize_positive_int_list(centro_ids)
-
         unidades = await get_all_unidades(
             conn,
-            centro_ids=normalized_centro_ids,
-            limit=safe_limit,
-            offset=safe_offset,
+            centro_ids=query.centro_ids,
+            limit=query.limit,
+            offset=query.offset,
         )
 
         if not unidades:
@@ -66,19 +62,14 @@ async def get_unidades(
 
 async def get_cursos(
     conn: asyncpg.Connection,
-    unidade_ids: list[int] | None,
-    limit: int,
-    offset: int,
+    query: CatalogueCoursesQueryRequest,
 ) -> dict:
     try:
-        safe_limit, safe_offset = get_safe_limit_offset(limit, offset)
-        normalized_unidade_ids = normalize_positive_int_list(unidade_ids)
-
         cursos = await get_all_cursos(
             conn,
-            unidade_ids=normalized_unidade_ids,
-            limit=safe_limit,
-            offset=safe_offset,
+            unidade_ids=query.unidade_ids,
+            limit=query.limit,
+            offset=query.offset,
         )
 
         if not cursos:

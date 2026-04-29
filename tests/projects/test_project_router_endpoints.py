@@ -45,17 +45,17 @@ def test_get_projects_forwards_filters_and_returns_200(monkeypatch: pytest.Monke
     assert response.status_code == 200
     payload = json.loads(response.body.decode("utf-8"))
     assert payload["data"]["projetos"] == [{"id": 1}]
-    service_mock.assert_awaited_once_with(
-        conn,
-        [1, 2],
-        [5],
-        [9],
-        "titulo_asc",
-        2,
-        30,
-        False,
-        "abc",
-    )
+    service_mock.assert_awaited_once()
+    args = service_mock.await_args.args
+    assert args[0] is conn
+    assert args[1].area_ids == [1, 2]
+    assert args[1].unidade_ids == [5]
+    assert args[1].curso_ids == [9]
+    assert args[1].ordenacao == "titulo_asc"
+    assert args[1].page == 2
+    assert args[1].page_size == 30
+    assert args[1].somente_habilitados is False
+    assert args[1].q == "abc"
 
 
 def test_get_projects_returns_400_when_service_fails(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -80,7 +80,13 @@ def test_get_my_projects_forwards_authenticated_user(monkeypatch: pytest.MonkeyP
     response = asyncio.run(projects_router_module.get_my_projects(user=user, conn=conn, page=1, page_size=20, q=None))
 
     assert response.status_code == 200
-    service_mock.assert_awaited_once_with(conn, user, 1, 20, None)
+    service_mock.assert_awaited_once()
+    args = service_mock.await_args.args
+    assert args[0] is conn
+    assert args[1] is user
+    assert args[2].page == 1
+    assert args[2].page_size == 20
+    assert args[2].q is None
 
 
 def test_patch_project_passes_validated_payload_to_service(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -138,7 +144,13 @@ def test_post_project_logo_forwards_payload_to_service(monkeypatch: pytest.Monke
     response = asyncio.run(projects_router_module.post_project_logo(project_id=10, image=image, alt_text="logo", user=user, conn=conn))
 
     assert response.status_code == 200
-    service_mock.assert_awaited_once_with(conn, user, 10, image, "logo")
+    service_mock.assert_awaited_once()
+    args = service_mock.await_args.args
+    assert args[0] is conn
+    assert args[1] is user
+    assert args[2] == 10
+    assert args[3].image is image
+    assert args[3].alt_text == "logo"
 
 
 def test_post_project_assignment_returns_201_on_success(monkeypatch: pytest.MonkeyPatch) -> None:

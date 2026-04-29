@@ -54,3 +54,8 @@ def test_project_list_query_request_normalizes_ids_and_blank_query() -> None:
     assert payload.area_ids == [1, 3]
     assert payload.unidade_ids == [2, 5]
     assert payload.curso_ids == [1, 9]
+
+
+def test_project_list_query_request_rejects_invalid_sort_option() -> None:
+    with pytest.raises(ValidationError):
+        ProjectListQueryRequest(ordenacao="invalida")
