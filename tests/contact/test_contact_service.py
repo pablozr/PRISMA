@@ -53,7 +53,7 @@ def test_create_contact_email_persists_and_publishes_queue_event(monkeypatch: py
     result = asyncio.run(
         contact_service.create_contact_email(
             conn=_DummyConn(),
-            user={"userId": 7, "role": "student"},
+            user={"id": 7, "role": "student"},
             channel=channel,
             data=data,
         )
