@@ -1,14 +1,28 @@
 from datetime import datetime
 from typing import Optional, TypedDict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+CONTACT_EMAIL_SUBJECT_MAX_LENGTH = 180
+CONTACT_EMAIL_BODY_MAX_LENGTH = 5000
 
 
 class ContactEmailCreateRequest(BaseModel):
-    project_id: int
-    to_email: str
-    subject: str
-    body: str
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: int = Field(..., ge=1)
+    subject: str = Field(..., min_length=1, max_length=CONTACT_EMAIL_SUBJECT_MAX_LENGTH)
+    body: str = Field(..., min_length=1, max_length=CONTACT_EMAIL_BODY_MAX_LENGTH)
+
+    @field_validator("subject", "body")
+    @classmethod
+    def strip_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("O campo nao pode ser vazio.")
+
+        return normalized
 
 
 class ContactEmailCreateDataResponse(TypedDict):
