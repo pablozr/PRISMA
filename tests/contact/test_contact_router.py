@@ -69,3 +69,34 @@ def test_get_contact_email_returns_400_when_service_rejects(monkeypatch: pytest.
 
     assert response.status_code == 400
     assert json.loads(response.body.decode("utf-8")) == {"detail": "Solicitacao nao encontrada."}
+
+
+def test_get_contact_email_sent_by_me_forwards_user_to_service(monkeypatch: pytest.MonkeyPatch) -> None:
+    conn = object()
+    user = {"id": 7, "role": "student"}
+    service_mock = AsyncMock(
+        return_value={
+            "status": True,
+            "message": "ok",
+            "data": {
+                "requests": [
+                    {
+                        "request_id": 10,
+                        "project_id": 5,
+                        "to_email": "prof@edu.unirio.br",
+                        "subject": "Interesse",
+                        "body": "Mensagem",
+                        "status": "sent",
+                    }
+                ]
+            },
+        }
+    )
+    monkeypatch.setattr(contact_router_module, "get_contact_emails_sent_by_me", service_mock)
+
+    response = asyncio.run(contact_router_module.get_contact_email_sent_by_me(user=user, conn=conn))
+
+    assert response.status_code == 200
+    payload = json.loads(response.body.decode("utf-8"))
+    assert payload["data"]["requests"][0]["request_id"] == 10
+    service_mock.assert_awaited_once_with(conn, user)

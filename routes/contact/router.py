@@ -5,7 +5,11 @@ from core.rabbitmq.rabbitmq import rabbitmq
 from core.security import security
 from functions.utils.utils import default_response
 from schemas.notification.email_dispatch_request import ContactEmailCreateRequest
-from services.contact.contact_service import create_contact_email, get_contact_email_status
+from services.contact.contact_service import (
+    create_contact_email,
+    get_contact_email_status,
+    get_contact_emails_sent_by_me,
+)
 
 router = APIRouter()
 
@@ -20,6 +24,14 @@ async def post_contact_email(
     return await default_response(create_contact_email, [conn, user, channel, data], is_creation=True)
 
 
+@router.get("/email/me")
+async def get_contact_email_sent_by_me(
+    user=Depends(security.validate_token_wrapper),
+    conn=Depends(postgresql.get_db),
+):
+    return await default_response(get_contact_emails_sent_by_me, [conn, user])
+
+
 @router.get("/email/{request_id}")
 async def get_contact_email(
     request_id: int,
@@ -27,11 +39,3 @@ async def get_contact_email(
     conn=Depends(postgresql.get_db),
 ):
     return await default_response(get_contact_email_status, [conn, user, request_id])
-
-
-@router.get("/email/me")
-async def get_contact_email_sent_by_me(
-    user=Depends(security.validate_token_wrapper),
-    conn=Depends(postgresql.get_db),
-):
-    return await default_response(get_contact_email_sent_by_me, [conn, user])
