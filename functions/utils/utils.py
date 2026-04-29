@@ -1,5 +1,6 @@
 from typing import Any, Callable, List, Optional
 import inspect
+from fastapi.encoders import jsonable_encoder
 from starlette.responses import JSONResponse
 from core.logger.logger import logger
 
@@ -18,7 +19,8 @@ async def default_response(callable_function: Callable, params: list = [], is_cr
 
         status_code = 200 if not is_creation else 201
         if not dict_response:
-            return JSONResponse(status_code=status_code, content={"message": result["message"], "data": result["data"]})
+            payload = jsonable_encoder({"message": result["message"], "data": result["data"]})
+            return JSONResponse(status_code=status_code, content=payload)
         return {"status": True, "message": result["message"], "data": result["data"]}
     except Exception as e:
         logger.exception(e)
