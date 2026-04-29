@@ -26,8 +26,11 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
       REFRESH_TOKEN_EXPIRE_MINUTES: ${REFRESH_TOKEN_EXPIRE_MINUTES}
       ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN}
+      PROJECT_COVER_UPLOAD_DIR: /app/project-covers
     ports:
       - "${API_PORT}:${API_PORT}"
+    volumes:
+      - ../siepa-front/src/assets/project-covers:/app/project-covers
     depends_on:
       postgres:
         condition: service_healthy
