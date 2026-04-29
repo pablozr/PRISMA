@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request, Depends
 from starlette.responses import JSONResponse, RedirectResponse
 
 from core.config.config import COOKIE_AUTH, COOKIE_AUTH_REFRESH, COOKIE_AUTH_RESET, RESET_COOKIE_MAX_AGE, settings
+from core.cookies.cookies import set_auth_cookies
 from core.postgresql.postgresql import postgresql
 from core.rabbitmq.rabbitmq import rabbitmq
 from core.redis.redis_cache import redis_cache
@@ -29,39 +30,6 @@ from services.auth.auth_service import (
 router = APIRouter()
 
 
-def _set_auth_cookies(resp: JSONResponse | RedirectResponse, access_token: str, refresh_token: str, session_id: str | None = None) -> None:
-    resp.set_cookie(
-        key=COOKIE_AUTH,
-        value=access_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        path="/",
-        max_age=900,
-    )
-
-    resp.set_cookie(
-        key=COOKIE_AUTH_REFRESH,
-        value=refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        path="/",
-        max_age=604800,
-    )
-
-    if session_id:
-        resp.set_cookie(
-            key="session_id",
-            value=session_id,
-            httponly=True,
-            secure=True,
-            samesite="lax",
-            path="/",
-            max_age=604800,
-        )
-
-
 @router.post("/login", dependencies=LOGIN_RATE_LIMIT_DEPS)
 async def login(
         data: UserLoginRequest,
@@ -77,7 +45,7 @@ async def login(
     refresh_token = response["data"].pop("refreshToken")
 
     resp = JSONResponse(status_code=200, content={"message": response["message"], "data": response["data"]})
-    _set_auth_cookies(resp, access_token, refresh_token)
+    set_auth_cookies(resp, access_token, refresh_token)
 
     return resp
 
@@ -113,7 +81,7 @@ async def google_oauth_callback(
         return RedirectResponse(settings.FRONTEND_AUTH_ERROR_URL, status_code=302)
 
     redirect_response = RedirectResponse(settings.FRONTEND_AUTH_SUCCESS_URL, status_code=302)
-    _set_auth_cookies(redirect_response, access_token, refresh_token, session_id)
+    set_auth_cookies(redirect_response, access_token, refresh_token, session_id)
     return redirect_response
 
 
@@ -173,7 +141,7 @@ async def refresh_token(request: Request, redis_client: redis.Redis = Depends(re
             session_id = None
 
     resp = JSONResponse(status_code=200, content={"message": response["message"], "data": response["data"]})
-    _set_auth_cookies(resp, access_token, refresh_token, session_id)
+    set_auth_cookies(resp, access_token, refresh_token, session_id)
 
     return resp
 
