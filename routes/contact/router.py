@@ -23,7 +23,15 @@ async def post_contact_email(
 @router.get("/email/{request_id}")
 async def get_contact_email(
     request_id: int,
-    user=Depends(security.validate_token_wrapper),
+    user=Depends(security.require_admin_rank),
     conn=Depends(postgresql.get_db),
 ):
     return await default_response(get_contact_email_status, [conn, user, request_id])
+
+
+@router.get("/email/me")
+async def get_contact_email_sent_by_me(
+    user=Depends(security.validate_token_wrapper),
+    conn=Depends(postgresql.get_db),
+):
+    return await default_response(get_contact_email_sent_by_me, [conn, user])

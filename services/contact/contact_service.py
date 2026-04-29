@@ -9,6 +9,7 @@ from functions.utils.utils import service_response, extract_authenticated_user_c
 from repositories.contact.contact_repository import (
     create_contact_email_request,
     get_contact_email_request_status,
+    get_contact_email_sent_by_me,
 )
 from schemas.notification.email_dispatch_request import ContactEmailCreateRequest
 from services.queue import queue_service
@@ -89,7 +90,7 @@ async def get_contact_email_status(
             return service_response(False, "Usuario autenticado invalido.")
 
         user_id, user_role = user_context
-        if user_role not in {"student", "admin"}:
+        if user_role not in {"admin"}:
             return service_response(False, "Usuario sem permissao para consultar esta solicitacao.")
 
         request = await get_contact_email_request_status(
@@ -110,3 +111,27 @@ async def get_contact_email_status(
     except Exception as e:
         logger.exception(e)
         return service_response(False, "Erro ao consultar solicitacao de contato.")
+
+
+async def get_contact_emails_sent_by_me(
+    conn: asyncpg.Connection,
+    user: dict,
+) -> dict:
+    try:
+        user_context = extract_authenticated_user_context(user)
+        if user_context is None:
+            return service_response(False, "Usuario autenticado invalido.")
+
+        user_id, _ = user_context
+
+        requests = await get_contact_email_sent_by_me(conn=conn, user_id=user_id)
+
+        return service_response(
+            True,
+            "Solicitacoes de contato recuperadas com sucesso.",
+            data={"requests": requests},
+        )
+    except Exception as e:
+        logger.exception(e)
+        return service_response(False, "Erro ao consultar solicitacoes de contato.")
+    

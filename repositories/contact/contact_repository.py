@@ -85,3 +85,27 @@ async def get_contact_email_request_status(
 
     row = await conn.fetchrow(query, request_id, user_id, user_role)
     return dict(row) if row else None
+
+
+async def get_contact_email_sent_by_me(
+    conn: asyncpg.Connection,
+    user_id: int,
+) -> list:
+    query = """
+            SELECT id AS request_id,
+                   project_id,
+                   to_email,
+                   subject,
+                   body,
+                   status,
+                   attempt_count,
+                   next_attempt_at,
+                   last_error,
+                   sent_at
+            FROM email_dispatch_requests
+            WHERE requested_by_user_id = $1
+            ORDER BY created_at DESC;
+            """
+
+    rows = await conn.fetch(query, user_id)
+    return [dict(row) for row in rows]
