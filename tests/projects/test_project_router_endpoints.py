@@ -1,9 +1,11 @@
 import asyncio
+from io import BytesIO
 import json
 import os
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi import UploadFile
 
 os.environ.setdefault("DB_HOST", "localhost")
 os.environ.setdefault("DB_USER", "postgres")
@@ -65,7 +67,14 @@ def test_get_projects_returns_400_when_service_fails(monkeypatch: pytest.MonkeyP
         AsyncMock(return_value={"status": False, "message": "Ordenacao invalida.", "data": {}}),
     )
 
-    response = asyncio.run(projects_router_module.get_projects(conn=object()))
+    response = asyncio.run(
+        projects_router_module.get_projects(
+            conn=object(),
+            area_ids=None,
+            unidade_ids=None,
+            curso_ids=None,
+        )
+    )
 
     assert response.status_code == 400
     assert json.loads(response.body.decode("utf-8")) == {"detail": "Ordenacao invalida."}
@@ -140,7 +149,7 @@ def test_post_project_logo_forwards_payload_to_service(monkeypatch: pytest.Monke
     )
     monkeypatch.setattr(projects_router_module, "upload_project_logo", service_mock)
 
-    image = object()
+    image = UploadFile(filename="logo.png", file=BytesIO(b"image"))
     response = asyncio.run(projects_router_module.post_project_logo(project_id=10, image=image, alt_text="logo", user=user, conn=conn))
 
     assert response.status_code == 200
