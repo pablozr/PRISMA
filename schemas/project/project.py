@@ -164,11 +164,6 @@ class ProjectDetailResponse(TypedDict):
 
 
 class ProjectUpdateRequest(BaseProjectRequestModel):
-    titulo: Optional[str] = Field(
-        default=None,
-        min_length=PROJECT_TITLE_MIN_LENGTH,
-        max_length=PROJECT_TITLE_MAX_LENGTH,
-    )
     descricao: Optional[str] = Field(
         default=None,
         min_length=PROJECT_DESCRIPTION_MIN_LENGTH,
@@ -180,7 +175,7 @@ class ProjectUpdateRequest(BaseProjectRequestModel):
         max_length=PROJECT_DESCRIPTION_MAX_LENGTH,
     )
 
-    @field_validator("titulo", "descricao", "descricao_curta")
+    @field_validator("descricao", "descricao_curta")
     @classmethod
     def strip_text(cls, value: Optional[str]) -> Optional[str]:
         if value is None:

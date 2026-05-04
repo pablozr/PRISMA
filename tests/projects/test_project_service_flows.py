@@ -110,7 +110,6 @@ def test_update_my_project_maps_fields_and_updates(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(project_service, "update_managed_project_fields", update_mock)
 
     payload = ProjectUpdateRequest(
-        titulo="Novo titulo",
         descricao="Descricao valida com tamanho",
         descricao_curta="Resumo valido do projeto",
     )
@@ -133,7 +132,6 @@ def test_update_my_project_maps_fields_and_updates(monkeypatch: pytest.MonkeyPat
         user_id=11,
         user_role="professor",
         allowed_fields={
-            "title": "Novo titulo",
             "full_description": "Descricao valida com tamanho",
             "short_description": "Resumo valido do projeto",
         },

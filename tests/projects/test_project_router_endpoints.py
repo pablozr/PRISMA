@@ -110,7 +110,7 @@ def test_patch_project_passes_validated_payload_to_service(monkeypatch: pytest.M
     )
     monkeypatch.setattr(projects_router_module, "update_my_project", service_mock)
 
-    payload = ProjectUpdateRequest(titulo="  Titulo valido  ", descricao="  Descricao suficientemente valida  ")
+    payload = ProjectUpdateRequest(descricao="  Descricao suficientemente valida  ")
 
     response = asyncio.run(projects_router_module.patch_my_project(project_id=10, payload=payload, user=user, conn=conn))
 
@@ -118,7 +118,7 @@ def test_patch_project_passes_validated_payload_to_service(monkeypatch: pytest.M
     body = json.loads(response.body.decode("utf-8"))
     assert body["data"]["projeto"]["id"] == 10
     service_mock.assert_awaited_once_with(conn, user, 10, payload)
-    assert payload.titulo == "Titulo valido"
+    assert payload.descricao == "Descricao suficientemente valida"
 
 
 def test_patch_project_returns_400_when_service_rejects(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -130,7 +130,7 @@ def test_patch_project_returns_400_when_service_rejects(monkeypatch: pytest.Monk
         AsyncMock(return_value={"status": False, "message": "Projeto invalido.", "data": {}}),
     )
 
-    payload = ProjectUpdateRequest(titulo="Titulo valido")
+    payload = ProjectUpdateRequest(descricao="Descricao suficientemente valida")
     response = asyncio.run(projects_router_module.patch_my_project(project_id=0, payload=payload, user=user, conn=conn))
 
     assert response.status_code == 400
