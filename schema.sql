@@ -76,7 +76,6 @@ CREATE TABLE projects (
   full_description TEXT,
   contact_email CITEXT NOT NULL,
   responsible_user_id BIGINT NOT NULL REFERENCES users(id),
-  owner_professor_id BIGINT REFERENCES professor_registry(id),
   executing_unit_id BIGINT REFERENCES organizational_units(id),
   source_import_batch_id BIGINT REFERENCES import_batches(id),
   project_type_id BIGINT REFERENCES project_types(id),
@@ -230,9 +229,6 @@ CREATE INDEX idx_projects_public_listing
 
 CREATE INDEX idx_projects_title_trgm
   ON projects USING gin (title gin_trgm_ops);
-
-CREATE INDEX idx_projects_owner_professor
-  ON projects(owner_professor_id);
 
 CREATE INDEX idx_projects_responsible_user
   ON projects(responsible_user_id);

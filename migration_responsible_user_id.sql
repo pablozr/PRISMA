@@ -23,4 +23,9 @@ ALTER TABLE projects
 CREATE INDEX IF NOT EXISTS idx_projects_responsible_user
   ON projects(responsible_user_id);
 
+DROP INDEX IF EXISTS idx_projects_owner_professor;
+
+ALTER TABLE projects
+  DROP COLUMN IF EXISTS owner_professor_id;
+
 COMMIT;
