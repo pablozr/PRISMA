@@ -31,6 +31,10 @@ class ProjectData(TypedDict):
     contact_email: str
     owner_professor_id: int
     owner_professor_name: Optional[str]
+    responsible_id: Optional[int]
+    responsible_name: Optional[str]
+    responsible_email: Optional[str]
+    responsible_type: Optional[str]
     executing_unit_id: Optional[int]
     executing_unit_name: Optional[str]
     executing_unit_short_name: Optional[str]
