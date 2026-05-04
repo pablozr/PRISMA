@@ -159,10 +159,13 @@ async def get_public_projects(
             p.contact_email,
             p.owner_professor_id,
             pr.full_name AS owner_professor_name,
-            p.owner_professor_id AS responsible_id,
-            pr.full_name AS responsible_name,
-            pr.institutional_email AS responsible_email,
-            'docente'::TEXT AS responsible_type,
+            COALESCE(p.responsible_user_id, pr.user_id) AS responsible_id,
+            COALESCE(ru.full_name, pr.full_name) AS responsible_name,
+            COALESCE(ru.institutional_email::TEXT, pr.institutional_email::TEXT) AS responsible_email,
+            CASE
+                WHEN COALESCE(ru.role, 'professor') = 'tecnico' THEN 'tecnico'
+                ELSE 'docente'
+            END AS responsible_type,
             p.executing_unit_id,
             ou.name AS executing_unit_name,
             ou.short_name AS executing_unit_short_name,
@@ -200,6 +203,7 @@ async def get_public_projects(
             ) AS course_ids
         FROM projects p
         LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
+        LEFT JOIN users ru ON ru.id = COALESCE(p.responsible_user_id, pr.user_id)
         LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
         LEFT JOIN project_types pt ON pt.id = p.project_type_id
         LEFT JOIN project_images pic ON pic.project_id = p.id AND pic.image_type = 'cover'
@@ -224,10 +228,13 @@ async def get_public_project_by_id(conn: asyncpg.Connection, project_id: int) ->
             p.contact_email,
             p.owner_professor_id,
             pr.full_name AS owner_professor_name,
-            p.owner_professor_id AS responsible_id,
-            pr.full_name AS responsible_name,
-            pr.institutional_email AS responsible_email,
-            'docente'::TEXT AS responsible_type,
+            COALESCE(p.responsible_user_id, pr.user_id) AS responsible_id,
+            COALESCE(ru.full_name, pr.full_name) AS responsible_name,
+            COALESCE(ru.institutional_email::TEXT, pr.institutional_email::TEXT) AS responsible_email,
+            CASE
+                WHEN COALESCE(ru.role, 'professor') = 'tecnico' THEN 'tecnico'
+                ELSE 'docente'
+            END AS responsible_type,
             p.executing_unit_id,
             ou.name AS executing_unit_name,
             ou.short_name AS executing_unit_short_name,
@@ -326,6 +333,7 @@ async def get_public_project_by_id(conn: asyncpg.Connection, project_id: int) ->
             ) AS atribuicoes
         FROM projects p
         LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
+        LEFT JOIN users ru ON ru.id = COALESCE(p.responsible_user_id, pr.user_id)
         LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
         LEFT JOIN project_types pt ON pt.id = p.project_type_id
         WHERE p.id = $1
@@ -403,7 +411,7 @@ async def get_user_managed_projects(
         WHERE p.is_active = TRUE
           AND (
               $1::TEXT = 'admin'
-              OR pr.user_id = $2
+              OR COALESCE(p.responsible_user_id, pr.user_id) = $2
           )
           AND (
               $3::TEXT IS NULL
@@ -428,10 +436,13 @@ async def get_user_managed_projects(
             p.contact_email,
             p.owner_professor_id,
             pr.full_name AS owner_professor_name,
-            p.owner_professor_id AS responsible_id,
-            pr.full_name AS responsible_name,
-            pr.institutional_email AS responsible_email,
-            'docente'::TEXT AS responsible_type,
+            COALESCE(p.responsible_user_id, pr.user_id) AS responsible_id,
+            COALESCE(ru.full_name, pr.full_name) AS responsible_name,
+            COALESCE(ru.institutional_email::TEXT, pr.institutional_email::TEXT) AS responsible_email,
+            CASE
+                WHEN COALESCE(ru.role, 'professor') = 'tecnico' THEN 'tecnico'
+                ELSE 'docente'
+            END AS responsible_type,
             p.executing_unit_id,
             ou.name AS executing_unit_name,
             ou.short_name AS executing_unit_short_name,
@@ -496,13 +507,14 @@ async def get_user_managed_projects(
             ) AS atribuicoes
         FROM projects p
         LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
+        LEFT JOIN users ru ON ru.id = COALESCE(p.responsible_user_id, pr.user_id)
         LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
         LEFT JOIN project_types pt ON pt.id = p.project_type_id
         LEFT JOIN project_images pic ON pic.project_id = p.id AND pic.image_type = 'cover'
         WHERE p.is_active = TRUE
           AND (
               $1::TEXT = 'admin'
-              OR pr.user_id = $2
+              OR COALESCE(p.responsible_user_id, pr.user_id) = $2
           )
           AND (
               $3::TEXT IS NULL
@@ -552,7 +564,7 @@ async def update_managed_project_fields(
                       SELECT 1
                       FROM professor_registry pr_access
                       WHERE pr_access.id = p.owner_professor_id
-                        AND pr_access.user_id = $3
+                        AND COALESCE(p.responsible_user_id, pr_access.user_id) = $3
                   )
               )
             RETURNING p.*
@@ -566,10 +578,13 @@ async def update_managed_project_fields(
             up.contact_email,
             up.owner_professor_id,
             pr.full_name AS owner_professor_name,
-            up.owner_professor_id AS responsible_id,
-            pr.full_name AS responsible_name,
-            pr.institutional_email AS responsible_email,
-            'docente'::TEXT AS responsible_type,
+            COALESCE(up.responsible_user_id, pr.user_id) AS responsible_id,
+            COALESCE(ru.full_name, pr.full_name) AS responsible_name,
+            COALESCE(ru.institutional_email::TEXT, pr.institutional_email::TEXT) AS responsible_email,
+            CASE
+                WHEN COALESCE(ru.role, 'professor') = 'tecnico' THEN 'tecnico'
+                ELSE 'docente'
+            END AS responsible_type,
             up.executing_unit_id,
             ou.name AS executing_unit_name,
             ou.short_name AS executing_unit_short_name,
@@ -668,6 +683,7 @@ async def update_managed_project_fields(
             ) AS atribuicoes
         FROM updated_project up
         LEFT JOIN professor_registry pr ON pr.id = up.owner_professor_id
+        LEFT JOIN users ru ON ru.id = COALESCE(up.responsible_user_id, pr.user_id)
         LEFT JOIN organizational_units ou ON ou.id = up.executing_unit_id
         LEFT JOIN project_types pt ON pt.id = up.project_type_id
         LIMIT 1;
@@ -697,7 +713,7 @@ async def upsert_project_cover_image(
                       SELECT 1
                       FROM professor_registry pr
                       WHERE pr.id = p.owner_professor_id
-                        AND pr.user_id = $3
+                        AND COALESCE(p.responsible_user_id, pr.user_id) = $3
                   )
               )
             LIMIT 1
@@ -761,7 +777,7 @@ async def create_project_assignment(
                       SELECT 1
                       FROM professor_registry pr
                       WHERE pr.id = p.owner_professor_id
-                        AND pr.user_id = $3
+                        AND COALESCE(p.responsible_user_id, pr.user_id) = $3
                   )
               )
             LIMIT 1
@@ -880,7 +896,7 @@ async def get_manageable_assignment_by_id(
           AND p.is_active = TRUE
           AND (
               $2::TEXT = 'admin'
-              OR pr.user_id = $3
+              OR COALESCE(p.responsible_user_id, pr.user_id) = $3
           )
         LIMIT 1;
     """
@@ -907,7 +923,7 @@ async def deactivate_project_assignment(
           AND p.is_active = TRUE
           AND (
               $2::TEXT = 'admin'
-              OR pr.user_id = $3
+              OR COALESCE(p.responsible_user_id, pr.user_id) = $3
           )
         RETURNING pa.id;
     """

@@ -5,7 +5,7 @@ CREATE TABLE users (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   institutional_email CITEXT NOT NULL UNIQUE,
   full_name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('admin', 'student', 'professor')),
+  role TEXT NOT NULL CHECK (role IN ('admin', 'student', 'professor', 'tecnico')),
   password_hash TEXT,
   google_sub TEXT UNIQUE,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -75,6 +75,7 @@ CREATE TABLE projects (
   short_description TEXT,
   full_description TEXT,
   contact_email CITEXT NOT NULL,
+  responsible_user_id BIGINT REFERENCES users(id),
   owner_professor_id BIGINT NOT NULL REFERENCES professor_registry(id),
   executing_unit_id BIGINT REFERENCES organizational_units(id),
   source_import_batch_id BIGINT REFERENCES import_batches(id),
@@ -232,6 +233,9 @@ CREATE INDEX idx_projects_title_trgm
 
 CREATE INDEX idx_projects_owner_professor
   ON projects(owner_professor_id);
+
+CREATE INDEX idx_projects_responsible_user
+  ON projects(responsible_user_id);
 
 CREATE INDEX idx_projects_executing_unit
   ON projects(executing_unit_id);

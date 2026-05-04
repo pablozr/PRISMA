@@ -277,3 +277,12 @@ def test_require_professor_rank_allows_professor() -> None:
     result = asyncio.run(dependency(user=professor_user))
 
     assert result == professor_user
+
+
+def test_require_manager_rank_allows_tecnico() -> None:
+    dependency = security.require_manager_rank()
+    tecnico_user = {"role": "tecnico", "id": 77}
+
+    result = asyncio.run(dependency(user=tecnico_user))
+
+    assert result == tecnico_user

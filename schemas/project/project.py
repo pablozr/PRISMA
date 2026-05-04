@@ -29,7 +29,7 @@ class ProjectData(TypedDict):
     short_description: Optional[str]
     full_description: Optional[str]
     contact_email: str
-    owner_professor_id: int
+    owner_professor_id: Optional[int]
     owner_professor_name: Optional[str]
     responsible_id: Optional[int]
     responsible_name: Optional[str]

@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     ROLE_RANK_BY_NAME: dict[str, int] = Field(
         default_factory=lambda: {
             "STUDENT": 1,
+            "TECNICO": 2,
             "PROFESSOR": 2,
             "ADMIN": 3,
         }

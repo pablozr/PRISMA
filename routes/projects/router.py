@@ -74,7 +74,7 @@ async def get_project_assignments(project_id: int, conn=Depends(postgresql.get_d
 
 @router.get("/me/projects")
 async def get_my_projects(
-    user=Depends(security.require_professor_rank()),
+    user=Depends(security.require_manager_rank()),
     conn=Depends(postgresql.get_db),
     page: int = PROJECTS_DEFAULT_PAGE,
     page_size: int = PROJECTS_DEFAULT_PAGE_SIZE,
@@ -88,7 +88,7 @@ async def get_my_projects(
 async def patch_my_project(
     project_id: int,
     payload: ProjectUpdateRequest,
-    user=Depends(security.require_professor_rank()),
+    user=Depends(security.require_manager_rank()),
     conn=Depends(postgresql.get_db),
 ):
     return await default_response(
@@ -102,7 +102,7 @@ async def post_project_logo(
     project_id: int,
     image: UploadFile = File(...),
     alt_text: Optional[str] = Form(default=None),
-    user=Depends(security.require_professor_rank()),
+    user=Depends(security.require_manager_rank()),
     conn=Depends(postgresql.get_db),
 ):
     payload = ProjectLogoUploadRequest(image=image, alt_text=alt_text)
@@ -116,7 +116,7 @@ async def post_project_logo(
 async def post_project_assignment(
     project_id: int,
     payload: ProjectAssignmentCreateRequest,
-    user=Depends(security.require_professor_rank()),
+    user=Depends(security.require_manager_rank()),
     conn=Depends(postgresql.get_db),
 ):
     return await default_response(
@@ -129,7 +129,7 @@ async def post_project_assignment(
 @router.delete("/atribuicoes/{assignment_id}")
 async def delete_project_assignment(
     assignment_id: int,
-    user=Depends(security.require_professor_rank()),
+    user=Depends(security.require_manager_rank()),
     conn=Depends(postgresql.get_db),
 ):
     return await default_response(delete_my_project_assignment, [conn, user, assignment_id])

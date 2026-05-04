@@ -227,5 +227,9 @@ def require_professor_rank():
     return require_minimum_rank(2)
 
 
+def require_manager_rank():
+    return require_minimum_rank(2)
+
+
 def require_student_rank():
     return require_minimum_rank(1)
