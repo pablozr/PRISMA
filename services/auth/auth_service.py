@@ -21,7 +21,7 @@ from repositories.professor.professor_repository import (
     create_user_professor_registry,
     get_active_professor_by_email,
 )
-from repositories.user.user_repository import create_student_user, get_active_user_by_email
+from repositories.user.user_repository import get_active_user_by_email
 from schemas.auth.auth import (
     ForgetPasswordRequestModel,
     UpdatePasswordRequest,
@@ -29,7 +29,6 @@ from schemas.auth.auth import (
     ValidateCodeRequest,
 )
 from schemas.professor.professor import CreateProfessorSchema
-from schemas.user.user import CreateStudentUserSchema
 from integrations.google_oauth_client import google_oauth_client
 from services.cache import cache_service
 from services.queue import queue_service
@@ -137,14 +136,7 @@ async def _find_or_create_google_user(conn: asyncpg.Connection, google_user: dic
     if professor_user:
         return professor_user
 
-    full_name = google_user.get("name") or email.split("@")[0]
-    student_data = CreateStudentUserSchema(
-        institutional_email=email,
-        full_name=full_name,
-        google_sub=google_sub,
-    )
-
-    return await create_student_user(conn, student_data)
+    return None
 
 
 async def login(conn: asyncpg.Connection, redis_client: redis.Redis, login_data: UserLoginRequest) -> dict:

@@ -11,42 +11,8 @@ os.environ.setdefault("DB_NAME", "siepa")
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client")
 
-from repositories.user.user_repository import create_student_user
 from schemas.professor.professor import CreateProfessorSchema
-from schemas.user.user import CreateStudentUserSchema
 from services.auth import auth_service
-
-
-def test_create_student_user_runs_insert_query() -> None:
-    conn = AsyncMock()
-    db_row = {
-        "id": 10,
-        "institutional_email": "aluno@edu.unirio.br",
-        "full_name": "Aluno Teste",
-        "role": "student",
-        "google_sub": "google-sub",
-        "is_active": True,
-        "created_at": "2026-04-17T10:00:00",
-        "updated_at": "2026-04-17T10:00:00",
-    }
-    conn.fetchrow = AsyncMock(return_value=db_row)
-
-    data = CreateStudentUserSchema(
-        institutional_email="aluno@edu.unirio.br",
-        full_name="Aluno Teste",
-        google_sub="google-sub",
-    )
-
-    result = asyncio.run(create_student_user(conn, data))
-
-    assert result == db_row
-    conn.fetchrow.assert_awaited_once()
-    query, email, full_name, google_sub = conn.fetchrow.await_args.args
-    assert "INSERT INTO users" in query
-    assert "'student'" in query
-    assert email == data.institutional_email
-    assert full_name == data.full_name
-    assert google_sub == data.google_sub
 
 
 def test_create_professor_user_from_registry_returns_none_when_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -119,15 +85,13 @@ def test_find_or_create_google_user_returns_existing_user(monkeypatch: pytest.Mo
     existing_user = {
         "id": 5,
         "institutional_email": "user@edu.unirio.br",
-        "role": "student",
+        "role": "professor",
     }
 
     monkeypatch.setattr(auth_service, "get_active_user_by_email", AsyncMock(return_value=existing_user))
 
     professor_mock = AsyncMock()
-    student_mock = AsyncMock()
     monkeypatch.setattr(auth_service, "_create_professor_user_from_registry", professor_mock)
-    monkeypatch.setattr(auth_service, "create_student_user", student_mock)
 
     result = asyncio.run(
         auth_service._find_or_create_google_user(
@@ -138,7 +102,6 @@ def test_find_or_create_google_user_returns_existing_user(monkeypatch: pytest.Mo
 
     assert result == existing_user
     professor_mock.assert_not_awaited()
-    student_mock.assert_not_awaited()
 
 
 def test_find_or_create_google_user_returns_none_when_sub_missing(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -147,9 +110,7 @@ def test_find_or_create_google_user_returns_none_when_sub_missing(monkeypatch: p
     monkeypatch.setattr(auth_service, "get_active_user_by_email", AsyncMock(return_value=None))
 
     professor_mock = AsyncMock()
-    student_mock = AsyncMock()
     monkeypatch.setattr(auth_service, "_create_professor_user_from_registry", professor_mock)
-    monkeypatch.setattr(auth_service, "create_student_user", student_mock)
 
     result = asyncio.run(
         auth_service._find_or_create_google_user(
@@ -160,7 +121,6 @@ def test_find_or_create_google_user_returns_none_when_sub_missing(monkeypatch: p
 
     assert result is None
     professor_mock.assert_not_awaited()
-    student_mock.assert_not_awaited()
 
 
 def test_find_or_create_google_user_returns_professor_when_registry_matches(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -174,9 +134,7 @@ def test_find_or_create_google_user_returns_professor_when_registry_matches(monk
     monkeypatch.setattr(auth_service, "get_active_user_by_email", AsyncMock(return_value=None))
 
     professor_mock = AsyncMock(return_value=professor_user)
-    student_mock = AsyncMock()
     monkeypatch.setattr(auth_service, "_create_professor_user_from_registry", professor_mock)
-    monkeypatch.setattr(auth_service, "create_student_user", student_mock)
 
     result = asyncio.run(
         auth_service._find_or_create_google_user(
@@ -191,43 +149,25 @@ def test_find_or_create_google_user_returns_professor_when_registry_matches(monk
 
     assert result == professor_user
     professor_mock.assert_awaited_once_with(conn, "prof@edu.unirio.br", "sub-prof")
-    student_mock.assert_not_awaited()
 
 
-def test_find_or_create_google_user_creates_student_if_professor_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_find_or_create_google_user_returns_none_if_professor_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
     conn = object()
     google_user = {
         "email": "aluno@edu.unirio.br",
         "sub": "google-sub",
         "name": "Aluno Teste",
     }
-    created_user = {
-        "id": 7,
-        "institutional_email": "aluno@edu.unirio.br",
-        "full_name": "Aluno Teste",
-        "role": "student",
-        "google_sub": "google-sub",
-        "is_active": True,
-    }
 
     monkeypatch.setattr(auth_service, "get_active_user_by_email", AsyncMock(return_value=None))
     monkeypatch.setattr(auth_service, "_create_professor_user_from_registry", AsyncMock(return_value=None))
 
-    create_student_mock = AsyncMock(return_value=created_user)
-    monkeypatch.setattr(auth_service, "create_student_user", create_student_mock)
-
     result = asyncio.run(auth_service._find_or_create_google_user(conn, google_user))
 
-    assert result == created_user
-    create_student_mock.assert_awaited_once()
-    _, student_data = create_student_mock.await_args.args
-    assert isinstance(student_data, CreateStudentUserSchema)
-    assert student_data.institutional_email == "aluno@edu.unirio.br"
-    assert student_data.full_name == "Aluno Teste"
-    assert student_data.google_sub == "google-sub"
+    assert result is None
 
 
-def test_find_or_create_google_user_uses_email_prefix_when_name_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_find_or_create_google_user_ignores_name_when_professor_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
     conn = object()
     google_user = {
         "email": "sem.nome@edu.unirio.br",
@@ -237,22 +177,15 @@ def test_find_or_create_google_user_uses_email_prefix_when_name_missing(monkeypa
     monkeypatch.setattr(auth_service, "get_active_user_by_email", AsyncMock(return_value=None))
     monkeypatch.setattr(auth_service, "_create_professor_user_from_registry", AsyncMock(return_value=None))
 
-    create_student_mock = AsyncMock(return_value={"id": 8, "role": "student"})
-    monkeypatch.setattr(auth_service, "create_student_user", create_student_mock)
-
-    asyncio.run(auth_service._find_or_create_google_user(conn, google_user))
-
-    create_student_mock.assert_awaited_once()
-    _, student_data = create_student_mock.await_args.args
-    assert student_data.full_name == "sem.nome"
+    result = asyncio.run(auth_service._find_or_create_google_user(conn, google_user))
+    assert result is None
 
 
-def test_find_or_create_google_user_returns_none_when_student_creation_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_find_or_create_google_user_returns_none_when_professor_cannot_be_created(monkeypatch: pytest.MonkeyPatch) -> None:
     conn = object()
 
     monkeypatch.setattr(auth_service, "get_active_user_by_email", AsyncMock(return_value=None))
     monkeypatch.setattr(auth_service, "_create_professor_user_from_registry", AsyncMock(return_value=None))
-    monkeypatch.setattr(auth_service, "create_student_user", AsyncMock(return_value=None))
 
     result = asyncio.run(
         auth_service._find_or_create_google_user(
@@ -266,4 +199,3 @@ def test_find_or_create_google_user_returns_none_when_student_creation_fails(mon
     )
 
     assert result is None
-
