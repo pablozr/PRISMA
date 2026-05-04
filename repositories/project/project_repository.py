@@ -157,8 +157,6 @@ async def get_public_projects(
             p.title,
             p.short_description,
             p.contact_email,
-            p.owner_professor_id,
-            pr.full_name AS owner_professor_name,
             p.responsible_user_id AS responsible_id,
             ru.full_name AS responsible_name,
             ru.institutional_email::TEXT AS responsible_email,
@@ -202,7 +200,6 @@ async def get_public_projects(
                 ARRAY[]::BIGINT[]
             ) AS course_ids
         FROM projects p
-        LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
         LEFT JOIN users ru ON ru.id = p.responsible_user_id
         LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
         LEFT JOIN project_types pt ON pt.id = p.project_type_id
@@ -226,8 +223,6 @@ async def get_public_project_by_id(conn: asyncpg.Connection, project_id: int) ->
             p.short_description,
             p.full_description,
             p.contact_email,
-            p.owner_professor_id,
-            pr.full_name AS owner_professor_name,
             p.responsible_user_id AS responsible_id,
             ru.full_name AS responsible_name,
             ru.institutional_email::TEXT AS responsible_email,
@@ -332,7 +327,6 @@ async def get_public_project_by_id(conn: asyncpg.Connection, project_id: int) ->
                 '[]'::jsonb
             ) AS atribuicoes
         FROM projects p
-        LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
         LEFT JOIN users ru ON ru.id = p.responsible_user_id
         LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
         LEFT JOIN project_types pt ON pt.id = p.project_type_id
@@ -405,7 +399,6 @@ async def get_user_managed_projects(
     count_query = """
         SELECT COUNT(*)::BIGINT AS total
         FROM projects p
-        LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
         LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
         LEFT JOIN project_types pt ON pt.id = p.project_type_id
         WHERE p.is_active = TRUE
@@ -434,8 +427,6 @@ async def get_user_managed_projects(
             p.short_description,
             p.full_description,
             p.contact_email,
-            p.owner_professor_id,
-            pr.full_name AS owner_professor_name,
             p.responsible_user_id AS responsible_id,
             ru.full_name AS responsible_name,
             ru.institutional_email::TEXT AS responsible_email,
@@ -506,7 +497,6 @@ async def get_user_managed_projects(
                 '[]'::jsonb
             ) AS atribuicoes
         FROM projects p
-        LEFT JOIN professor_registry pr ON pr.id = p.owner_professor_id
         LEFT JOIN users ru ON ru.id = p.responsible_user_id
         LEFT JOIN organizational_units ou ON ou.id = p.executing_unit_id
         LEFT JOIN project_types pt ON pt.id = p.project_type_id
@@ -571,8 +561,6 @@ async def update_managed_project_fields(
             up.short_description,
             up.full_description,
             up.contact_email,
-            up.owner_professor_id,
-            pr.full_name AS owner_professor_name,
             up.responsible_user_id AS responsible_id,
             ru.full_name AS responsible_name,
             ru.institutional_email::TEXT AS responsible_email,
@@ -677,7 +665,6 @@ async def update_managed_project_fields(
                 '[]'::jsonb
             ) AS atribuicoes
         FROM updated_project up
-        LEFT JOIN professor_registry pr ON pr.id = up.owner_professor_id
         LEFT JOIN users ru ON ru.id = up.responsible_user_id
         LEFT JOIN organizational_units ou ON ou.id = up.executing_unit_id
         LEFT JOIN project_types pt ON pt.id = up.project_type_id
