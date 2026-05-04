@@ -51,6 +51,9 @@ DO $$
 DECLARE
   v_admin_id BIGINT;
   v_tecnico_id BIGINT;
+  v_user_ana_id BIGINT;
+  v_user_bruno_id BIGINT;
+  v_user_carla_id BIGINT;
   v_batch_id BIGINT;
 
   v_ccet_id BIGINT;
@@ -63,10 +66,6 @@ DECLARE
   v_dep_di_id BIGINT;
   v_dep_bio_id BIGINT;
   v_dep_edu_id BIGINT;
-
-  v_prof_ana_id BIGINT;
-  v_prof_bruno_id BIGINT;
-  v_prof_carla_id BIGINT;
 
   v_extensao_id BIGINT;
   v_ic_type_id BIGINT;
@@ -100,6 +99,18 @@ BEGIN
   SELECT id INTO v_tecnico_id
   FROM users
   WHERE institutional_email = 'taina.tecnico@demo.unirio.br';
+
+  SELECT id INTO v_user_ana_id
+  FROM users
+  WHERE institutional_email = 'ana.martins@demo.unirio.br';
+
+  SELECT id INTO v_user_bruno_id
+  FROM users
+  WHERE institutional_email = 'bruno.costa@demo.unirio.br';
+
+  SELECT id INTO v_user_carla_id
+  FROM users
+  WHERE institutional_email = 'carla.souza@demo.unirio.br';
 
   SELECT id INTO v_batch_id
   FROM import_batches
@@ -238,9 +249,9 @@ BEGIN
     is_active
   )
   VALUES
-    ('ana.martins@demo.unirio.br', 'Ana Martins', 'DEMO-SIAPE-001', v_dep_di_id, (SELECT id FROM users WHERE institutional_email = 'ana.martins@demo.unirio.br'), v_batch_id, TRUE),
-    ('bruno.costa@demo.unirio.br', 'Bruno Costa', 'DEMO-SIAPE-002', v_dep_bio_id, (SELECT id FROM users WHERE institutional_email = 'bruno.costa@demo.unirio.br'), v_batch_id, TRUE),
-    ('carla.souza@demo.unirio.br', 'Carla Souza', 'DEMO-SIAPE-003', v_dep_edu_id, (SELECT id FROM users WHERE institutional_email = 'carla.souza@demo.unirio.br'), v_batch_id, TRUE)
+    ('ana.martins@demo.unirio.br', 'Ana Martins', 'DEMO-SIAPE-001', v_dep_di_id, v_user_ana_id, v_batch_id, TRUE),
+    ('bruno.costa@demo.unirio.br', 'Bruno Costa', 'DEMO-SIAPE-002', v_dep_bio_id, v_user_bruno_id, v_batch_id, TRUE),
+    ('carla.souza@demo.unirio.br', 'Carla Souza', 'DEMO-SIAPE-003', v_dep_edu_id, v_user_carla_id, v_batch_id, TRUE)
   ON CONFLICT (institutional_email) DO UPDATE SET
     full_name = EXCLUDED.full_name,
     siape = EXCLUDED.siape,
@@ -249,10 +260,6 @@ BEGIN
     source_import_batch_id = EXCLUDED.source_import_batch_id,
     is_active = EXCLUDED.is_active,
     updated_at = NOW();
-
-  SELECT id INTO v_prof_ana_id FROM professor_registry WHERE institutional_email = 'ana.martins@demo.unirio.br';
-  SELECT id INTO v_prof_bruno_id FROM professor_registry WHERE institutional_email = 'bruno.costa@demo.unirio.br';
-  SELECT id INTO v_prof_carla_id FROM professor_registry WHERE institutional_email = 'carla.souza@demo.unirio.br';
 
   SELECT id INTO v_extensao_id FROM project_types WHERE slug = 'extensao';
   SELECT id INTO v_ic_type_id FROM project_types WHERE slug = 'iniciacao_cientifica';
@@ -284,7 +291,6 @@ BEGIN
       full_description,
       contact_email,
       responsible_user_id,
-      owner_professor_id,
       executing_unit_id,
       source_import_batch_id,
       project_type_id,
@@ -301,7 +307,6 @@ BEGIN
       'Projeto de extensao voltado para aproximar estudantes, professores e comunidade externa por meio de oficinas praticas sobre tecnologia, cidadania digital, programacao introdutoria e boas praticas de uso da internet.',
       'pablo.farina@edu.unirio.br',
       v_tecnico_id,
-      v_prof_ana_id,
       v_ic_id,
       v_batch_id,
       v_extensao_id,
@@ -319,7 +324,6 @@ BEGIN
       full_description = 'Projeto de extensao voltado para aproximar estudantes, professores e comunidade externa por meio de oficinas praticas sobre tecnologia, cidadania digital, programacao introdutoria e boas praticas de uso da internet.',
       contact_email = 'pablo.farina@edu.unirio.br',
       responsible_user_id = v_tecnico_id,
-      owner_professor_id = v_prof_ana_id,
       executing_unit_id = v_ic_id,
       source_import_batch_id = v_batch_id,
       project_type_id = v_extensao_id,
@@ -336,7 +340,7 @@ BEGIN
   IF v_project_2 IS NULL THEN
     INSERT INTO projects (
       process_code, title, short_description, full_description, contact_email,
-      responsible_user_id, owner_professor_id, executing_unit_id, source_import_batch_id, project_type_id,
+      responsible_user_id, executing_unit_id, source_import_batch_id, project_type_id,
       status, is_active, starts_at, ends_at, published_at
     )
     VALUES (
@@ -345,8 +349,7 @@ BEGIN
       'Pesquisa sobre organizacao, busca e recomendacao de projetos academicos em portais institucionais.',
       'Projeto de iniciacao cientifica que investiga formas de estruturar catalogos academicos, melhorar busca textual e apoiar recomendacoes de projetos conforme areas, cursos e unidades institucionais.',
       'pablo.farina@edu.unirio.br',
-      (SELECT id FROM users WHERE institutional_email = 'ana.martins@demo.unirio.br'),
-      v_prof_ana_id,
+      v_user_ana_id,
       v_ic_id,
       v_batch_id,
       v_ic_type_id,
@@ -363,8 +366,7 @@ BEGIN
       short_description = 'Pesquisa sobre organizacao, busca e recomendacao de projetos academicos em portais institucionais.',
       full_description = 'Projeto de iniciacao cientifica que investiga formas de estruturar catalogos academicos, melhorar busca textual e apoiar recomendacoes de projetos conforme areas, cursos e unidades institucionais.',
       contact_email = 'ana.martins@demo.unirio.br',
-      responsible_user_id = (SELECT id FROM users WHERE institutional_email = 'ana.martins@demo.unirio.br'),
-      owner_professor_id = v_prof_ana_id,
+      responsible_user_id = v_user_ana_id,
       executing_unit_id = v_ic_id,
       source_import_batch_id = v_batch_id,
       project_type_id = v_ic_type_id,
@@ -381,7 +383,7 @@ BEGIN
   IF v_project_3 IS NULL THEN
     INSERT INTO projects (
       process_code, title, short_description, full_description, contact_email,
-      responsible_user_id, owner_professor_id, executing_unit_id, source_import_batch_id, project_type_id,
+      responsible_user_id, executing_unit_id, source_import_batch_id, project_type_id,
       status, is_active, starts_at, ends_at, published_at
     )
     VALUES (
@@ -390,8 +392,7 @@ BEGIN
       'Acoes educativas sobre sustentabilidade, biodiversidade e preservacao ambiental em escolas parceiras.',
       'Projeto de extensao que desenvolve atividades com estudantes da educacao basica, articulando ciencias biologicas, meio ambiente e praticas pedagogicas para promover consciencia ambiental.',
       'bruno.costa@demo.unirio.br',
-      (SELECT id FROM users WHERE institutional_email = 'bruno.costa@demo.unirio.br'),
-      v_prof_bruno_id,
+      v_user_bruno_id,
       v_ibio_id,
       v_batch_id,
       v_extensao_id,
@@ -408,8 +409,7 @@ BEGIN
       short_description = 'Acoes educativas sobre sustentabilidade, biodiversidade e preservacao ambiental em escolas parceiras.',
       full_description = 'Projeto de extensao que desenvolve atividades com estudantes da educacao basica, articulando ciencias biologicas, meio ambiente e praticas pedagogicas para promover consciencia ambiental.',
       contact_email = 'bruno.costa@demo.unirio.br',
-      responsible_user_id = (SELECT id FROM users WHERE institutional_email = 'bruno.costa@demo.unirio.br'),
-      owner_professor_id = v_prof_bruno_id,
+      responsible_user_id = v_user_bruno_id,
       executing_unit_id = v_ibio_id,
       source_import_batch_id = v_batch_id,
       project_type_id = v_extensao_id,
@@ -426,7 +426,7 @@ BEGIN
   IF v_project_4 IS NULL THEN
     INSERT INTO projects (
       process_code, title, short_description, full_description, contact_email,
-      responsible_user_id, owner_professor_id, executing_unit_id, source_import_batch_id, project_type_id,
+      responsible_user_id, executing_unit_id, source_import_batch_id, project_type_id,
       status, is_active, starts_at, ends_at, published_at
     )
     VALUES (
@@ -435,8 +435,7 @@ BEGIN
       'Atividades culturais e oficinas musicais para valorizacao da memoria local e producao artistica comunitaria.',
       'Projeto de extensao que integra estudantes e comunidade por meio de oficinas, rodas de conversa, apresentacoes e registros culturais ligados a musica, memoria e territorio.',
       'carla.souza@demo.unirio.br',
-      (SELECT id FROM users WHERE institutional_email = 'carla.souza@demo.unirio.br'),
-      v_prof_carla_id,
+      v_user_carla_id,
       v_ia_id,
       v_batch_id,
       v_extensao_id,
@@ -453,8 +452,7 @@ BEGIN
       short_description = 'Atividades culturais e oficinas musicais para valorizacao da memoria local e producao artistica comunitaria.',
       full_description = 'Projeto de extensao que integra estudantes e comunidade por meio de oficinas, rodas de conversa, apresentacoes e registros culturais ligados a musica, memoria e territorio.',
       contact_email = 'carla.souza@demo.unirio.br',
-      responsible_user_id = (SELECT id FROM users WHERE institutional_email = 'carla.souza@demo.unirio.br'),
-      owner_professor_id = v_prof_carla_id,
+      responsible_user_id = v_user_carla_id,
       executing_unit_id = v_ia_id,
       source_import_batch_id = v_batch_id,
       project_type_id = v_extensao_id,
@@ -471,7 +469,7 @@ BEGIN
   IF v_project_5 IS NULL THEN
     INSERT INTO projects (
       process_code, title, short_description, full_description, contact_email,
-      responsible_user_id, owner_professor_id, executing_unit_id, source_import_batch_id, project_type_id,
+      responsible_user_id, executing_unit_id, source_import_batch_id, project_type_id,
       status, is_active, starts_at, ends_at, published_at
     )
     VALUES (
@@ -480,8 +478,7 @@ BEGIN
       'Estudo exploratorio sobre dados academicos, permanencia estudantil e visualizacao de indicadores.',
       'Projeto de iniciacao cientifica voltado para analise de dados institucionais, producao de indicadores e construcao de visualizacoes que apoiem a compreensao de trajetorias academicas.',
       'carla.souza@demo.unirio.br',
-      (SELECT id FROM users WHERE institutional_email = 'carla.souza@demo.unirio.br'),
-      v_prof_carla_id,
+      v_user_carla_id,
       v_eco_id,
       v_batch_id,
       v_ic_type_id,
@@ -498,8 +495,7 @@ BEGIN
       short_description = 'Estudo exploratorio sobre dados academicos, permanencia estudantil e visualizacao de indicadores.',
       full_description = 'Projeto de iniciacao cientifica voltado para analise de dados institucionais, producao de indicadores e construcao de visualizacoes que apoiem a compreensao de trajetorias academicas.',
       contact_email = 'carla.souza@demo.unirio.br',
-      responsible_user_id = (SELECT id FROM users WHERE institutional_email = 'carla.souza@demo.unirio.br'),
-      owner_professor_id = v_prof_carla_id,
+      responsible_user_id = v_user_carla_id,
       executing_unit_id = v_eco_id,
       source_import_batch_id = v_batch_id,
       project_type_id = v_ic_type_id,
@@ -516,7 +512,7 @@ BEGIN
   IF v_project_6 IS NULL THEN
     INSERT INTO projects (
       process_code, title, short_description, full_description, contact_email,
-      responsible_user_id, owner_professor_id, executing_unit_id, source_import_batch_id, project_type_id,
+      responsible_user_id, executing_unit_id, source_import_batch_id, project_type_id,
       status, is_active, starts_at, ends_at, published_at
     )
     VALUES (
@@ -525,8 +521,7 @@ BEGIN
       'Este projeto fica em draft para testar se a listagem publica ignora rascunhos.',
       'Registro demonstrativo usado para validar regras de visibilidade. Nao deve aparecer na listagem publica de projetos publicados.',
       'ana.martins@demo.unirio.br',
-      (SELECT id FROM users WHERE institutional_email = 'ana.martins@demo.unirio.br'),
-      v_prof_ana_id,
+      v_user_ana_id,
       v_ic_id,
       v_batch_id,
       v_extensao_id,
