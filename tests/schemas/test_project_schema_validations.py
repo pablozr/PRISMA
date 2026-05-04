@@ -15,15 +15,18 @@ from schemas.project.project_assignment import ProjectAssignmentCreateRequest
 
 
 def test_project_update_request_strips_valid_fields() -> None:
-    payload = ProjectUpdateRequest(titulo="  Novo titulo  ", descricao="  Descricao valida para projeto  ")
+    payload = ProjectUpdateRequest(
+        descricao="  Descricao valida para projeto  ",
+        descricao_curta="  Resumo valido do projeto  ",
+    )
 
-    assert payload.titulo == "Novo titulo"
     assert payload.descricao == "Descricao valida para projeto"
+    assert payload.descricao_curta == "Resumo valido do projeto"
 
 
 def test_project_update_request_rejects_blank_after_strip() -> None:
     with pytest.raises(ValidationError):
-        ProjectUpdateRequest(titulo="   ")
+        ProjectUpdateRequest(descricao="   ")
 
 
 def test_project_assignment_request_rejects_duplicate_course_ids() -> None:
