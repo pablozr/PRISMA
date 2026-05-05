@@ -151,7 +151,7 @@ async def login(conn: asyncpg.Connection, redis_client: redis.Redis, login_data:
 async def logout(redis_client: redis.Redis, session_id: str | None) -> dict:
     try:
         await cache_service.delete_by_key(f"session:{session_id}", redis_client)
-        return service_response(status=True, message="Logout successful")
+        return service_response(status=True, message="Logout realizado com sucesso")
     except Exception as e:
         logger.exception(e)
         return service_response(status=False, message="Erro interno")
@@ -212,7 +212,7 @@ async def google_oauth_start(redis_client: redis.Redis) -> dict:
 
         return service_response(
             status=True,
-            message="Google OAuth URL generated",
+            message="URL de autenticacao Google gerada com sucesso",
             data={"authorizationUrl": google_oauth_client.build_authorization_url(state, nonce)},
         )
     except Exception as e:
@@ -284,7 +284,7 @@ async def forget_password(
         )
 
         if not row:
-            return service_response(status=False, message="User not found")
+            return service_response(status=False, message="Usuario nao encontrado")
 
         code = f"{secrets.randbelow(1_000_000):06d}"
         cache_key = f"{row['id']}:{row['institutional_email']}"
@@ -304,7 +304,7 @@ async def forget_password(
             {
                 "to": data.email,
                 "from": EMAIL_FROM,
-                "subject": "Password reset code",
+                "subject": "Codigo para redefinicao de senha",
                 "html": html,
                 "message": "",
                 "base64Attachment": "",
@@ -327,12 +327,12 @@ async def forget_password(
 
         return service_response(
             status=True,
-            message="Verification code sent",
+            message="Codigo de verificacao enviado",
             data={"access_token": token},
         )
     except Exception as e:
         logger.exception(e)
-        return service_response(status=False, message="Internal server error")
+        return service_response(status=False, message="Erro interno")
 
 
 async def validate_reset_code(
@@ -344,14 +344,14 @@ async def validate_reset_code(
         role = user.get("role")
 
         if user_id is None or not email or not role:
-            return service_response(status=False, message="Invalid token")
+            return service_response(status=False, message="Token invalido")
 
         full_name = user.get("fullname") or user.get("full_name") or email.split("@")[0]
         cache_key = f"{user_id}:{email}"
         redis_data = await cache_service.get_by_key(cache_key, redis_client)
 
         if not redis_data or redis_data.get("code") != data.code:
-            return service_response(status=False, message="Invalid or expired code")
+            return service_response(status=False, message="Codigo invalido ou expirado")
 
         await cache_service.delete_by_key(cache_key, redis_client)
 
@@ -369,12 +369,12 @@ async def validate_reset_code(
 
         return service_response(
             status=True,
-            message="Code validated",
+            message="Codigo validado com sucesso",
             data={"access_token": token},
         )
     except Exception as e:
         logger.exception(e)
-        return service_response(status=False, message="Internal server error")
+        return service_response(status=False, message="Erro interno")
 
 
 async def update_password_after_reset(
@@ -383,7 +383,7 @@ async def update_password_after_reset(
     try:
         user_id = user.get("userId") or user.get("id")
         if user_id is None:
-            return service_response(status=False, message="Invalid token")
+            return service_response(status=False, message="Token invalido")
 
         hashed = hash_password(data.password)
 
@@ -401,11 +401,11 @@ async def update_password_after_reset(
         )
 
         if not row:
-            return service_response(status=False, message="User not found")
+            return service_response(status=False, message="Usuario nao encontrado")
 
         return service_response(
             status=True,
-            message="Password updated successfully",
+            message="Senha atualizada com sucesso",
             data={
                 "user": {
                     "id": row["id"],
@@ -420,4 +420,4 @@ async def update_password_after_reset(
         )
     except Exception as e:
         logger.exception(e)
-        return service_response(status=False, message="Internal server error")
+        return service_response(status=False, message="Erro interno")

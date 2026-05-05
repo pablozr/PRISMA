@@ -78,6 +78,6 @@ def extract_user_identity(user: dict) -> tuple[int, str, str]:
 def build_login_success_response(access_token: str, refresh_token: str) -> dict:
     return service_response(
         status=True,
-        message="Login successful",
+        message="Login realizado com sucesso",
         data={"accessToken": access_token, "refreshToken": refresh_token},
     )
