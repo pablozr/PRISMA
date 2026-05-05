@@ -34,7 +34,7 @@ ON CONFLICT (slug) DO UPDATE SET
 -- Usuários demo
 INSERT INTO users (institutional_email, full_name, role, password_hash, google_sub, is_active)
 VALUES
-  ('admin.demo@demo.unirio.br', 'Administrador Demo SIEPA', 'admin', '123', NULL, TRUE),
+  ('apollo.zero@outlook.com', 'Apollo Zero', 'admin', '$2b$12$amZRmXpCN2rgBVqo0w4TJucEKFoCWiK7Xm6bgk.5QyawVkK0Pfgtu', NULL, TRUE),
   ('pablo.farina@edu.unirio.br', 'Pablo Farina', 'tecnico', NULL, 'google-demo-tec-pablo-farina', TRUE),
   ('ana.martins@demo.unirio.br', 'Ana Martins', 'professor', NULL, 'google-demo-prof-ana-martins', TRUE),
   ('bruno.costa@demo.unirio.br', 'Bruno Costa', 'professor', NULL, 'google-demo-prof-bruno-costa', TRUE),
@@ -94,7 +94,7 @@ DECLARE
 BEGIN
   SELECT id INTO v_admin_id
   FROM users
-  WHERE institutional_email = 'admin.demo@demo.unirio.br';
+  WHERE institutional_email = 'apollo.zero@outlook.com';
 
   SELECT id INTO v_tecnico_id
   FROM users
