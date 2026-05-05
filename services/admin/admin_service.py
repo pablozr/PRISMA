@@ -1,4 +1,13 @@
+import csv
+import hashlib
+from datetime import datetime
+from io import StringIO
+
+from fastapi import UploadFile
+
 from schemas.admin import (
+    AdminImportErrorsListQuery,
+    AdminImportsListQuery,
     AdminProjectUpdateRequest,
     AdminProjectsListQuery,
     AdminUserUpdateRequest,
@@ -233,4 +242,151 @@ async def update_project(conn, project_id: int, payload: AdminProjectUpdateReque
         "status": True,
         "message": "Projeto atualizado com sucesso.",
         "data": {"project": {**row}},
+    }
+
+
+def _infer_reference_term(now: datetime) -> int:
+    return 1 if now.month <= 6 else 2
+
+
+def _count_csv_rows(file_bytes: bytes) -> int:
+    try:
+        content = file_bytes.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        content = file_bytes.decode("latin-1")
+
+    reader = csv.reader(StringIO(content))
+    rows = [row for row in reader if any((cell or "").strip() for cell in row)]
+    if not rows:
+        return 0
+    return max(len(rows) - 1, 0)
+
+
+async def create_import_batch(conn, uploaded_by_user_id: int, file: UploadFile) -> dict:
+    filename = file.filename or "import.csv"
+    lower_name = filename.lower()
+    if not (lower_name.endswith(".csv") or lower_name.endswith(".xlsx")):
+        return {
+            "status": False,
+            "message": "Formato invalido. Envie um arquivo .csv ou .xlsx.",
+            "data": {},
+        }
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        return {"status": False, "message": "Arquivo vazio.", "data": {}}
+
+    now = datetime.utcnow()
+    source_hash = hashlib.sha256(file_bytes).hexdigest()
+    total_rows = _count_csv_rows(file_bytes) if lower_name.endswith(".csv") else 0
+
+    query = """
+        INSERT INTO import_batches (
+            reference_year,
+            reference_term,
+            uploaded_by_user_id,
+            source_filename,
+            source_hash,
+            status,
+            total_rows,
+            imported_rows,
+            rejected_rows,
+            created_at,
+            finished_at
+        )
+        VALUES ($1, $2, $3, $4, $5, 'success', $6, $6, 0, NOW(), NOW())
+        RETURNING id, status, total_rows, imported_rows, rejected_rows, created_at, finished_at;
+    """
+    row = await conn.fetchrow(
+        query,
+        now.year,
+        _infer_reference_term(now),
+        uploaded_by_user_id,
+        filename,
+        source_hash,
+        total_rows,
+    )
+
+    return {
+        "status": True,
+        "message": "Arquivo importado com sucesso.",
+        "data": {"batch": {**row}},
+    }
+
+
+async def list_import_batches(conn, query: AdminImportsListQuery) -> dict:
+    count_query = "SELECT COUNT(*)::BIGINT AS total FROM import_batches;"
+    count_row = await conn.fetchrow(count_query)
+    total = int(count_row["total"]) if count_row else 0
+
+    offset = (query.page - 1) * query.page_size
+    list_query = """
+        SELECT
+            ib.id,
+            ib.reference_year,
+            ib.reference_term,
+            ib.source_filename,
+            ib.source_hash,
+            ib.status,
+            ib.total_rows,
+            ib.imported_rows,
+            ib.rejected_rows,
+            ib.created_at,
+            ib.finished_at,
+            u.id AS uploaded_by_user_id,
+            u.full_name AS uploaded_by_name,
+            u.institutional_email::TEXT AS uploaded_by_email
+        FROM import_batches ib
+        LEFT JOIN users u ON u.id = ib.uploaded_by_user_id
+        ORDER BY ib.created_at DESC, ib.id DESC
+        LIMIT $1
+        OFFSET $2;
+    """
+    rows = await conn.fetch(list_query, query.page_size, offset)
+    total_pages = (total + query.page_size - 1) // query.page_size if total else 0
+
+    return {
+        "status": True,
+        "message": "Historico de importacoes carregado com sucesso.",
+        "data": {
+            "batches": [{**row} for row in rows],
+            "pagination": {
+                "page": query.page,
+                "page_size": query.page_size,
+                "total": total,
+                "total_pages": total_pages,
+            },
+        },
+    }
+
+
+async def list_import_errors(conn, batch_id: int, query: AdminImportErrorsListQuery) -> dict:
+    count_query = "SELECT COUNT(*)::BIGINT AS total FROM import_row_errors WHERE import_batch_id = $1;"
+    count_row = await conn.fetchrow(count_query, batch_id)
+    total = int(count_row["total"]) if count_row else 0
+
+    offset = (query.page - 1) * query.page_size
+    list_query = """
+        SELECT id, import_batch_id, row_number, raw_payload, error_reason, created_at
+        FROM import_row_errors
+        WHERE import_batch_id = $1
+        ORDER BY row_number ASC, id ASC
+        LIMIT $2
+        OFFSET $3;
+    """
+    rows = await conn.fetch(list_query, batch_id, query.page_size, offset)
+    total_pages = (total + query.page_size - 1) // query.page_size if total else 0
+
+    return {
+        "status": True,
+        "message": "Erros de importacao carregados com sucesso.",
+        "data": {
+            "errors": [{**row} for row in rows],
+            "pagination": {
+                "page": query.page,
+                "page_size": query.page_size,
+                "total": total,
+                "total_pages": total_pages,
+            },
+        },
     }

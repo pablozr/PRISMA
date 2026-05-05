@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, UploadFile
 
 from core.postgresql.postgresql import postgresql
 from core.security import security
 from functions.utils.utils import default_response
 from schemas.admin import (
+    AdminImportErrorsListQuery,
+    AdminImportsListQuery,
     AdminProjectUpdateRequest,
     AdminProjectsListQuery,
     AdminUserUpdateRequest,
@@ -64,3 +66,35 @@ async def patch_admin_project(
     conn=Depends(postgresql.get_db),
 ):
     return await default_response(admin_service.update_project, [conn, project_id, payload])
+
+
+@router.post("/imports")
+async def post_admin_import(
+    file: UploadFile = File(...),
+    user=Depends(security.require_admin_rank()),
+    conn=Depends(postgresql.get_db),
+):
+    return await default_response(admin_service.create_import_batch, [conn, user["id"], file], is_creation=True)
+
+
+@router.get("/imports")
+async def get_admin_imports(
+    page: int = 1,
+    page_size: int = 20,
+    _=Depends(security.require_admin_rank()),
+    conn=Depends(postgresql.get_db),
+):
+    query = AdminImportsListQuery(page=page, page_size=page_size)
+    return await default_response(admin_service.list_import_batches, [conn, query])
+
+
+@router.get("/imports/{batch_id}/errors")
+async def get_admin_import_errors(
+    batch_id: int,
+    page: int = 1,
+    page_size: int = 20,
+    _=Depends(security.require_admin_rank()),
+    conn=Depends(postgresql.get_db),
+):
+    query = AdminImportErrorsListQuery(page=page, page_size=page_size)
+    return await default_response(admin_service.list_import_errors, [conn, batch_id, query])
