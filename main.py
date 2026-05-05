@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from core.redis.redis_cache import redis_cache
 from routes.auth.router import router as auth_router
+from routes.admin.router import router as admin_router
 from routes.catalogues.router import router as catalogues_router
 from routes.projects.router import router as projects_router
 from routes.users.router import router as users_router
@@ -44,6 +45,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
+app.include_router(admin_router, prefix="/admin", tags=["admin"])
 app.include_router(catalogues_router, prefix="/catalogues", tags=["catalogues"])
 app.include_router(projects_router, prefix="", tags=["projects"])
 app.include_router(users_router, prefix="/users", tags=["users"])
