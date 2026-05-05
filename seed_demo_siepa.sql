@@ -35,7 +35,7 @@ ON CONFLICT (slug) DO UPDATE SET
 INSERT INTO users (institutional_email, full_name, role, password_hash, google_sub, is_active)
 VALUES
   ('admin.demo@demo.unirio.br', 'Administrador Demo SIEPA', 'admin', '123', NULL, TRUE),
-  ('taina.tecnico@demo.unirio.br', 'Taina Tecnica', 'tecnico', NULL, 'google-demo-tec-taina', TRUE),
+  ('pablo.farina@edu.unirio.br', 'Pablo Farina', 'tecnico', NULL, 'google-demo-tec-pablo-farina', TRUE),
   ('ana.martins@demo.unirio.br', 'Ana Martins', 'professor', NULL, 'google-demo-prof-ana-martins', TRUE),
   ('bruno.costa@demo.unirio.br', 'Bruno Costa', 'professor', NULL, 'google-demo-prof-bruno-costa', TRUE),
   ('carla.souza@demo.unirio.br', 'Carla Souza', 'professor', NULL, 'google-demo-prof-carla-souza', TRUE)
@@ -98,7 +98,7 @@ BEGIN
 
   SELECT id INTO v_tecnico_id
   FROM users
-  WHERE institutional_email = 'taina.tecnico@demo.unirio.br';
+  WHERE institutional_email = 'pablo.farina@edu.unirio.br';
 
   SELECT id INTO v_user_ana_id
   FROM users
@@ -349,7 +349,7 @@ BEGIN
       'Pesquisa sobre organizacao, busca e recomendacao de projetos academicos em portais institucionais.',
       'Projeto de iniciacao cientifica que investiga formas de estruturar catalogos academicos, melhorar busca textual e apoiar recomendacoes de projetos conforme areas, cursos e unidades institucionais.',
       'pablo.farina@edu.unirio.br',
-      v_user_ana_id,
+      v_tecnico_id,
       v_ic_id,
       v_batch_id,
       v_ic_type_id,
@@ -365,8 +365,8 @@ BEGIN
       title = 'DEMO - Modelos Inteligentes para Catalogos Academicos',
       short_description = 'Pesquisa sobre organizacao, busca e recomendacao de projetos academicos em portais institucionais.',
       full_description = 'Projeto de iniciacao cientifica que investiga formas de estruturar catalogos academicos, melhorar busca textual e apoiar recomendacoes de projetos conforme areas, cursos e unidades institucionais.',
-      contact_email = 'ana.martins@demo.unirio.br',
-      responsible_user_id = v_user_ana_id,
+      contact_email = 'pablo.farina@edu.unirio.br',
+      responsible_user_id = v_tecnico_id,
       executing_unit_id = v_ic_id,
       source_import_batch_id = v_batch_id,
       project_type_id = v_ic_type_id,
@@ -435,7 +435,7 @@ BEGIN
       'Atividades culturais e oficinas musicais para valorizacao da memoria local e producao artistica comunitaria.',
       'Projeto de extensao que integra estudantes e comunidade por meio de oficinas, rodas de conversa, apresentacoes e registros culturais ligados a musica, memoria e territorio.',
       'carla.souza@demo.unirio.br',
-      v_user_carla_id,
+      v_tecnico_id,
       v_ia_id,
       v_batch_id,
       v_extensao_id,
@@ -451,8 +451,8 @@ BEGIN
       title = 'DEMO - Musica, Memoria e Territorio',
       short_description = 'Atividades culturais e oficinas musicais para valorizacao da memoria local e producao artistica comunitaria.',
       full_description = 'Projeto de extensao que integra estudantes e comunidade por meio de oficinas, rodas de conversa, apresentacoes e registros culturais ligados a musica, memoria e territorio.',
-      contact_email = 'carla.souza@demo.unirio.br',
-      responsible_user_id = v_user_carla_id,
+      contact_email = 'pablo.farina@edu.unirio.br',
+      responsible_user_id = v_tecnico_id,
       executing_unit_id = v_ia_id,
       source_import_batch_id = v_batch_id,
       project_type_id = v_extensao_id,
@@ -521,7 +521,7 @@ BEGIN
       'Este projeto fica em draft para testar se a listagem publica ignora rascunhos.',
       'Registro demonstrativo usado para validar regras de visibilidade. Nao deve aparecer na listagem publica de projetos publicados.',
       'ana.martins@demo.unirio.br',
-      v_user_ana_id,
+      v_tecnico_id,
       v_ic_id,
       v_batch_id,
       v_extensao_id,
