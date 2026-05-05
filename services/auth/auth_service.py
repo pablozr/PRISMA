@@ -16,7 +16,7 @@ from core.config.config import (
 from core.logger.logger import logger
 from core.security.hashing import verify_password, hash_password
 from core.security.security import create_token, decode_access_token
-from functions.utils.utils import service_response
+from functions.utils.utils import build_login_success_response, extract_user_identity, service_response
 from repositories.professor.professor_repository import (
     create_user_professor_registry,
     get_active_professor_by_email,
@@ -36,19 +36,8 @@ from services.queue import queue_service
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
 
 
-def _extract_user_identity(user: dict) -> tuple[int, str, str]:
-    user_id = user.get("id")
-    email = user.get("email") or user.get("institutional_email")
-    role = user.get("role")
-
-    if user_id is None or not email or not role:
-        raise ValueError("Invalid user identity")
-
-    return user_id, email, role
-
-
 async def _create_session_tokens(user: dict, redis_client: redis.Redis) -> tuple[str, str]:
-    user_id, email, role = _extract_user_identity(user)
+    user_id, email, role = extract_user_identity(user)
     session_id = secrets.token_hex(16)
     refresh_jti = secrets.token_hex(16)
 
@@ -82,16 +71,6 @@ async def _create_session_tokens(user: dict, redis_client: redis.Redis) -> tuple
     )
 
     return access_token, refresh_token
-
-
-async def _login_success_response(user: dict, redis_client: redis.Redis) -> dict:
-    access_token, refresh_token = await _create_session_tokens(user, redis_client)
-    return service_response(
-        status=True,
-        message="Login successful",
-        data={"accessToken": access_token, "refreshToken": refresh_token},
-    )
-
 
 async def _create_professor_user_from_registry(
         conn: asyncpg.Connection,
@@ -162,7 +141,8 @@ async def login(conn: asyncpg.Connection, redis_client: redis.Redis, login_data:
         if not password_hash or not verify_password(login_data.password, password_hash):
             return service_response(status=False, message="Email ou senha incorretos")
 
-        return await _login_success_response(dict(user_record), redis_client)
+        access_token, refresh_token = await _create_session_tokens(dict(user_record), redis_client)
+        return build_login_success_response(access_token, refresh_token)
     except Exception as e:
         logger.exception(e)
         return service_response(status=False, message="Erro interno")
@@ -263,7 +243,8 @@ async def google_oauth_callback(
         if not user:
             return service_response(status=False, message="Usuario nao autorizado")
 
-        login_response = await _login_success_response(user, redis_client)
+        access_token, refresh_token = await _create_session_tokens(user, redis_client)
+        login_response = build_login_success_response(access_token, refresh_token)
         if not login_response["status"]:
             return login_response
 

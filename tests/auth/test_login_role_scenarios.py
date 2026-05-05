@@ -25,16 +25,10 @@ def test_login_common_allows_only_admin_with_valid_credentials(monkeypatch) -> N
     conn.fetchrow = AsyncMock(return_value=admin_row)
 
     verify_password_mock = Mock(return_value=True)
-    login_success_mock = AsyncMock(
-        return_value={
-            "status": True,
-            "message": "Login successful",
-            "data": {"accessToken": "token-a", "refreshToken": "token-r"},
-        }
-    )
+    create_tokens_mock = AsyncMock(return_value=("token-a", "token-r"))
 
     monkeypatch.setattr(auth_service, "verify_password", verify_password_mock)
-    monkeypatch.setattr(auth_service, "_login_success_response", login_success_mock)
+    monkeypatch.setattr(auth_service, "_create_session_tokens", create_tokens_mock)
 
     result = asyncio.run(
         auth_service.login(
@@ -46,7 +40,7 @@ def test_login_common_allows_only_admin_with_valid_credentials(monkeypatch) -> N
 
     assert result["status"] is True
     verify_password_mock.assert_called_once_with("Admin123!", "hashed-password")
-    login_success_mock.assert_awaited_once_with(dict(admin_row), redis_client)
+    create_tokens_mock.assert_awaited_once_with(dict(admin_row), redis_client)
 
 
 def test_login_common_rejects_student_even_with_valid_password(monkeypatch) -> None:
@@ -61,10 +55,10 @@ def test_login_common_rejects_student_even_with_valid_password(monkeypatch) -> N
     conn.fetchrow = AsyncMock(return_value=student_row)
 
     verify_password_mock = Mock(return_value=True)
-    login_success_mock = AsyncMock()
+    create_tokens_mock = AsyncMock()
 
     monkeypatch.setattr(auth_service, "verify_password", verify_password_mock)
-    monkeypatch.setattr(auth_service, "_login_success_response", login_success_mock)
+    monkeypatch.setattr(auth_service, "_create_session_tokens", create_tokens_mock)
 
     result = asyncio.run(
         auth_service.login(
@@ -76,7 +70,7 @@ def test_login_common_rejects_student_even_with_valid_password(monkeypatch) -> N
 
     assert result["status"] is False
     verify_password_mock.assert_not_called()
-    login_success_mock.assert_not_awaited()
+    create_tokens_mock.assert_not_awaited()
 
 
 def test_login_common_rejects_professor_even_with_valid_password(monkeypatch) -> None:
@@ -91,10 +85,10 @@ def test_login_common_rejects_professor_even_with_valid_password(monkeypatch) ->
     conn.fetchrow = AsyncMock(return_value=professor_row)
 
     verify_password_mock = Mock(return_value=True)
-    login_success_mock = AsyncMock()
+    create_tokens_mock = AsyncMock()
 
     monkeypatch.setattr(auth_service, "verify_password", verify_password_mock)
-    monkeypatch.setattr(auth_service, "_login_success_response", login_success_mock)
+    monkeypatch.setattr(auth_service, "_create_session_tokens", create_tokens_mock)
 
     result = asyncio.run(
         auth_service.login(
@@ -106,4 +100,4 @@ def test_login_common_rejects_professor_even_with_valid_password(monkeypatch) ->
 
     assert result["status"] is False
     verify_password_mock.assert_not_called()
-    login_success_mock.assert_not_awaited()
+    create_tokens_mock.assert_not_awaited()

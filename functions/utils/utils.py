@@ -62,3 +62,22 @@ def extract_authenticated_user_context(user: dict) -> tuple[int, str] | None:
         return None
 
     return user_id, user_role.strip().lower()
+
+
+def extract_user_identity(user: dict) -> tuple[int, str, str]:
+    user_id = user.get("id")
+    email = user.get("email") or user.get("institutional_email")
+    role = user.get("role")
+
+    if user_id is None or not email or not role:
+        raise ValueError("Invalid user identity")
+
+    return user_id, email, role
+
+
+def build_login_success_response(access_token: str, refresh_token: str) -> dict:
+    return service_response(
+        status=True,
+        message="Login successful",
+        data={"accessToken": access_token, "refreshToken": refresh_token},
+    )
