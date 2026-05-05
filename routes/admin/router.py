@@ -3,7 +3,12 @@ from fastapi import APIRouter, Depends
 from core.postgresql.postgresql import postgresql
 from core.security import security
 from functions.utils.utils import default_response
-from schemas.admin import AdminUserUpdateRequest, AdminUsersListQuery
+from schemas.admin import (
+    AdminProjectUpdateRequest,
+    AdminProjectsListQuery,
+    AdminUserUpdateRequest,
+    AdminUsersListQuery,
+)
 from services.admin import admin_service
 
 router = APIRouter()
@@ -37,3 +42,25 @@ async def patch_admin_user(
     conn=Depends(postgresql.get_db),
 ):
     return await default_response(admin_service.update_user, [conn, user_id, payload])
+
+
+@router.get("/projects")
+async def get_admin_projects(
+    page: int = 1,
+    page_size: int = 20,
+    q: str | None = None,
+    _=Depends(security.require_admin_rank()),
+    conn=Depends(postgresql.get_db),
+):
+    query = AdminProjectsListQuery(page=page, page_size=page_size, q=q)
+    return await default_response(admin_service.list_projects, [conn, query])
+
+
+@router.patch("/projects/{project_id}")
+async def patch_admin_project(
+    project_id: int,
+    payload: AdminProjectUpdateRequest,
+    _=Depends(security.require_admin_rank()),
+    conn=Depends(postgresql.get_db),
+):
+    return await default_response(admin_service.update_project, [conn, project_id, payload])
