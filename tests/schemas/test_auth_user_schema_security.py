@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from schemas.auth.auth import UpdatePasswordRequest, UserLoginRequest, ValidateCodeRequest
-from schemas.user.user import CreateStudentUserSchema, UserStatusUpdateRequest
+from schemas.user.user import UserStatusUpdateRequest, validate_google_sub
 
 
 def test_login_request_accepts_senha_alias_and_normalizes_email() -> None:
@@ -45,12 +45,6 @@ def test_user_status_update_accepts_habilitado_alias() -> None:
     assert payload.is_active is True
 
 
-def test_create_student_schema_rejects_invalid_google_sub_characters() -> None:
-    with pytest.raises(ValidationError):
-        CreateStudentUserSchema.model_validate(
-            {
-                "institutional_email": "aluno@edu.unirio.br",
-                "full_name": "Aluno Teste",
-                "google_sub": "sub invalido",
-            }
-        )
+def test_validate_google_sub_rejects_invalid_characters() -> None:
+    with pytest.raises(ValueError):
+        validate_google_sub("sub invalido")

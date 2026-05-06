@@ -93,7 +93,7 @@ def test_verify_token_returns_user_for_valid_auth_token_with_session(monkeypatch
         "userId": 42,
         "sessionId": "session-001",
     }
-    expected_user = {"id": 42, "role": "student"}
+    expected_user = {"id": 42, "role": "professor"}
 
     monkeypatch.setattr(security, "decode_access_token", lambda _token: payload)
     monkeypatch.setattr(
@@ -165,7 +165,7 @@ def test_verify_token_requires_valid_session_for_auth(monkeypatch: pytest.Monkey
     monkeypatch.setattr(
         security.user_service,
         "get_one_user",
-        AsyncMock(return_value={"status": True, "data": {"user": {"id": 5, "role": "student"}}}),
+        AsyncMock(return_value={"status": True, "data": {"user": {"id": 5, "role": "professor"}}}),
     )
     monkeypatch.setattr(security.cache_service, "get_by_key", AsyncMock(return_value=None))
 
@@ -182,7 +182,7 @@ def test_verify_token_requires_valid_session_for_auth(monkeypatch: pytest.Monkey
 
 
 def test_verify_token_allows_reset_with_can_update_true_when_requested(monkeypatch: pytest.MonkeyPatch) -> None:
-    expected_user = {"id": 9, "role": "student"}
+    expected_user = {"id": 9, "role": "professor"}
 
     monkeypatch.setattr(
         security,
@@ -244,7 +244,7 @@ def test_validate_token_raises_when_token_expired(monkeypatch: pytest.MonkeyPatc
 
 def test_validate_token_returns_user_and_sets_request_state(monkeypatch: pytest.MonkeyPatch) -> None:
     request = _build_request(cookies={security.COOKIE_AUTH: "token"})
-    resolved_user = {"id": 12, "role": "student"}
+    resolved_user = {"id": 12, "role": "professor"}
 
     monkeypatch.setattr(security, "verify_token", AsyncMock(return_value=resolved_user))
 
@@ -260,11 +260,11 @@ def test_validate_token_returns_user_and_sets_request_state(monkeypatch: pytest.
     assert request.state.token == "token"
 
 
-def test_require_professor_rank_blocks_student() -> None:
+def test_require_professor_rank_blocks_unknown_role() -> None:
     dependency = security.require_professor_rank()
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(dependency(user={"role": "student"}))
+        asyncio.run(dependency(user={"role": "visitor"}))
 
     assert exc_info.value.status_code == 403
     assert exc_info.value.detail == "Insufficient permissions"

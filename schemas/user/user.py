@@ -16,7 +16,7 @@ SPECIAL_CHAR_PATTERN = re.compile(r"[!@#$%^&*()_\-+=\[\]{};:,.?/\\|~`\"']")
 
 class UserRole(StrEnum):
     ADMIN = "admin"
-    STUDENT = "student"
+    TECNICO = "tecnico"
     PROFESSOR = "professor"
 
 
@@ -83,18 +83,9 @@ class UserBaseInput(BaseSchema):
         return validate_full_name(value)
 
 
-class CreateStudentUserSchema(UserBaseInput):
-    google_sub: str = Field(min_length=GOOGLE_SUB_MIN_LENGTH, max_length=GOOGLE_SUB_MAX_LENGTH)
-
-    @field_validator("google_sub")
-    @classmethod
-    def validate_google_sub_field(cls, value: str) -> str:
-        return validate_google_sub(value)
-
-
 class CreateUserSchema(UserBaseInput):
     password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH, repr=False)
-    role: UserRole = UserRole.STUDENT
+    role: UserRole
 
     @field_validator("password")
     @classmethod

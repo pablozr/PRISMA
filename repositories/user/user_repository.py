@@ -1,7 +1,5 @@
 import asyncpg
 
-from schemas.user.user import CreateStudentUserSchema
-
 
 async def get_active_user_by_email(conn: asyncpg.Connection, email: str) -> dict | None:
     query = """
@@ -88,34 +86,6 @@ async def update_user_password(conn: asyncpg.Connection, user_id: int, password_
             """
 
     row = await conn.fetchrow(query, password_hash, user_id)
-    return {**row} if row else None
-
-
-async def create_student_user(conn: asyncpg.Connection, data: CreateStudentUserSchema) -> dict | None:
-    query = """
-            INSERT INTO users (
-                institutional_email,
-                full_name,
-                google_sub,
-                role,
-                is_active,
-                last_login_at,
-                created_at,
-                updated_at
-            )
-            VALUES ($1, $2, $3, 'student', TRUE, NOW(), NOW(), NOW())
-            RETURNING
-                id,
-                institutional_email,
-                full_name,
-                role,
-                google_sub,
-                is_active,
-                created_at,
-                updated_at;
-            """
-
-    row = await conn.fetchrow(query, data.institutional_email, data.full_name, data.google_sub)
     return {**row} if row else None
 
 

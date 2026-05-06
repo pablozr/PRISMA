@@ -43,16 +43,16 @@ def test_login_common_allows_only_admin_with_valid_credentials(monkeypatch) -> N
     create_tokens_mock.assert_awaited_once_with(dict(admin_row), redis_client)
 
 
-def test_login_common_rejects_student_even_with_valid_password(monkeypatch) -> None:
+def test_login_common_rejects_tecnico_even_with_valid_password(monkeypatch) -> None:
     conn = AsyncMock()
     redis_client = object()
-    student_row = {
+    tecnico_row = {
         "id": 2,
-        "institutional_email": "aluno@edu.unirio.br",
+        "institutional_email": "tecnico@edu.unirio.br",
         "password_hash": "hashed-password",
-        "role": "student",
+        "role": "tecnico",
     }
-    conn.fetchrow = AsyncMock(return_value=student_row)
+    conn.fetchrow = AsyncMock(return_value=tecnico_row)
 
     verify_password_mock = Mock(return_value=True)
     create_tokens_mock = AsyncMock()
@@ -64,7 +64,7 @@ def test_login_common_rejects_student_even_with_valid_password(monkeypatch) -> N
         auth_service.login(
             conn,
             redis_client,
-            UserLoginRequest(email="aluno@edu.unirio.br", password="Aluno123!"),
+            UserLoginRequest(email="tecnico@edu.unirio.br", password="Tec12345!"),
         )
     )
 
