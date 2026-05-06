@@ -221,7 +221,7 @@ def test_validate_token_raises_when_cookie_missing() -> None:
         )
 
     assert exc_info.value.status_code == 401
-    assert exc_info.value.detail == "Not authenticated"
+    assert exc_info.value.detail == "Nao autenticado"
 
 
 def test_validate_token_raises_when_token_expired(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -239,7 +239,7 @@ def test_validate_token_raises_when_token_expired(monkeypatch: pytest.MonkeyPatc
         )
 
     assert exc_info.value.status_code == 401
-    assert exc_info.value.detail == "Token has expired"
+    assert exc_info.value.detail == "Token expirado"
 
 
 def test_validate_token_returns_user_and_sets_request_state(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -267,7 +267,7 @@ def test_require_professor_rank_blocks_unknown_role() -> None:
         asyncio.run(dependency(user={"role": "visitor"}))
 
     assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == "Insufficient permissions"
+    assert exc_info.value.detail == "Permissao insuficiente"
 
 
 def test_require_professor_rank_allows_professor() -> None:

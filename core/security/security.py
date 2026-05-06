@@ -47,24 +47,24 @@ async def verify_token(
         payload = decode_access_token(token)
 
         if payload.get("type") != expected_type:
-            raise jwt.InvalidTokenError("Token type mismatch")
+            raise jwt.InvalidTokenError("Tipo de token divergente")
 
         if expected_type == "reset" and not check_can_update:
             if payload.get("canUpdate") is not False:
-                raise jwt.InvalidTokenError("Invalid reset token stage")
+                raise jwt.InvalidTokenError("Etapa de token de redefinicao invalida")
 
         if not payload.get("userId"):
-            raise jwt.InvalidTokenError("Invalid token payload")
+            raise jwt.InvalidTokenError("Payload de token invalido")
 
         response = await user_service.get_one_user(conn, payload["userId"])
 
         if response["status"] is None or not response["status"]:
-            raise jwt.InvalidSignatureError("User not found")
+            raise jwt.InvalidSignatureError("Usuario nao encontrado")
 
         if check_can_update:
             if payload.get("canUpdate"):
                 return dict(response["data"]["user"])
-            raise jwt.InvalidTokenError("User does not have update permissions")
+            raise jwt.InvalidTokenError("Usuario sem permissao para atualizar")
 
         requires_session = expected_type in ("auth", "refresh")
 
@@ -73,15 +73,15 @@ async def verify_token(
                 f"session:{payload['sessionId']}", redis_client
             )
             if not session:
-                raise jwt.InvalidTokenError("Session is invalid")
+                raise jwt.InvalidTokenError("Sessao invalida")
 
         return dict(response["data"]["user"])
 
     except jwt.ExpiredSignatureError:
-        logger.error("Token has expired")
+        logger.error("Token expirado")
         return None
     except jwt.InvalidTokenError:
-        logger.error("Invalid token")
+        logger.error("Token invalido")
         return False
 
 
@@ -103,7 +103,7 @@ async def validate_token(
         token = request.cookies.get(cookie_key)
 
         if not token:
-            raise HTTPException(status_code=401, detail="Not authenticated")
+            raise HTTPException(status_code=401, detail="Nao autenticado")
 
         user = await verify_token(
             token,
@@ -114,10 +114,10 @@ async def validate_token(
         )
 
         if user is None:
-            raise HTTPException(status_code=401, detail="Token has expired")
+            raise HTTPException(status_code=401, detail="Token expirado")
 
         if not user:
-            raise HTTPException(status_code=401, detail="Invalid token")
+            raise HTTPException(status_code=401, detail="Token invalido")
 
         request.state.token = token
 
@@ -127,7 +127,7 @@ async def validate_token(
         raise
     except Exception as e:
         logger.exception(e)
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Token invalido")
 
 
 async def validate_token_to_update_password(
@@ -212,7 +212,7 @@ def require_minimum_rank(minimum_rank: int):
         rank = ROLE_RANK_BY_NAME.get(user.get("role", "").upper(), 0)
 
         if rank < minimum_rank:
-            raise HTTPException(status_code=403, detail="Insufficient permissions")
+            raise HTTPException(status_code=403, detail="Permissao insuficiente")
 
         return user
 

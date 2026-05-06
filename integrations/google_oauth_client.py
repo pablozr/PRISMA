@@ -46,7 +46,7 @@ class GoogleOAuthClient:
                 error_data = response.json()
             except Exception:
                 error_data = response.text
-            raise ValueError(f"Google token exchange failed: {error_data}")
+            raise ValueError(f"Falha na troca do token Google: {error_data}")
 
         return response.json()
 

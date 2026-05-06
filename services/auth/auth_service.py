@@ -163,16 +163,16 @@ async def refresh_token(redis_client: redis.Redis, refresh_token: str) -> dict:
         payload = decode_access_token(refresh_token)
 
         if payload.get("type") != "refresh":
-            raise ValueError("Invalid token type")
+            raise ValueError("Tipo de token invalido")
 
         if not payload.get("userId") or not payload.get("sessionId"):
-            raise ValueError("Invalid token")
+            raise ValueError("Token invalido")
 
         session = await cache_service.get_by_key(
             f"session:{payload['sessionId']}", redis_client
         )
         if not session or session.get("refreshJti") != payload.get("jti"):
-            raise ValueError("Invalid session")
+            raise ValueError("Sessao invalida")
 
         await cache_service.delete_by_key(f"session:{payload['sessionId']}", redis_client)
 
@@ -187,7 +187,7 @@ async def refresh_token(redis_client: redis.Redis, refresh_token: str) -> dict:
                                 data={"accessToken": new_access_token, "refreshToken": new_refresh_token})
     except ValueError as e:
         logger.error(str(e))
-        return service_response(status=False, message="Token inválido")
+        return service_response(status=False, message="Token invalido")
     except Exception as e:
         logger.exception(e)
         return service_response(status=False, message="Erro interno")
