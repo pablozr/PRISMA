@@ -22,6 +22,11 @@ from repositories.professor.professor_repository import (
     get_active_professor_by_email,
 )
 from repositories.user.user_repository import get_active_user_by_email
+from repositories.user.user_repository import (
+    get_active_user_for_password_reset,
+    get_active_user_with_password_by_email,
+    update_user_password,
+)
 from schemas.auth.auth import (
     ForgetPasswordRequestModel,
     UpdatePasswordRequest,
@@ -119,18 +124,8 @@ async def _find_or_create_google_user(conn: asyncpg.Connection, google_user: dic
 
 
 async def login(conn: asyncpg.Connection, redis_client: redis.Redis, login_data: UserLoginRequest) -> dict:
-    query = """
-            SELECT id,
-                   institutional_email,
-                   password_hash,
-                   role
-            FROM users
-            WHERE institutional_email = $1
-              AND is_active = TRUE LIMIT 1;
-            """
-
     try:
-        user_record = await conn.fetchrow(query, login_data.email)
+        user_record = await get_active_user_with_password_by_email(conn, login_data.email)
         if not user_record:
             return service_response(status=False, message="Email ou senha incorretos")
 
@@ -272,16 +267,7 @@ async def forget_password(
         data: ForgetPasswordRequestModel,
 ) -> dict:
     try:
-        row = await conn.fetchrow(
-            """
-            SELECT id, full_name, institutional_email, role
-            FROM users
-            WHERE institutional_email = $1
-              AND is_active = TRUE
-            LIMIT 1;
-            """,
-            data.email,
-        )
+        row = await get_active_user_for_password_reset(conn, data.email)
 
         if not row:
             return service_response(status=False, message="Usuario nao encontrado")
@@ -387,18 +373,7 @@ async def update_password_after_reset(
 
         hashed = hash_password(data.password)
 
-        row = await conn.fetchrow(
-            """
-            UPDATE users
-            SET password_hash = $1,
-                updated_at = NOW()
-            WHERE id = $2
-              AND is_active = TRUE
-            RETURNING id, institutional_email, full_name, role, is_active, created_at, updated_at
-            """,
-            hashed,
-            int(user_id),
-        )
+        row = await update_user_password(conn, int(user_id), hashed)
 
         if not row:
             return service_response(status=False, message="Usuario nao encontrado")

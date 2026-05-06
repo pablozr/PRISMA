@@ -21,6 +21,76 @@ async def get_active_user_by_email(conn: asyncpg.Connection, email: str) -> dict
     return {**result} if result else None
 
 
+async def get_active_user_with_password_by_email(conn: asyncpg.Connection, email: str) -> dict | None:
+    query = """
+            SELECT id,
+                   institutional_email,
+                   password_hash,
+                   role
+            FROM users
+            WHERE institutional_email = $1
+              AND is_active = TRUE
+            LIMIT 1;
+            """
+
+    row = await conn.fetchrow(query, email)
+    return {**row} if row else None
+
+
+async def get_active_user_for_password_reset(conn: asyncpg.Connection, email: str) -> dict | None:
+    query = """
+            SELECT id,
+                   full_name,
+                   institutional_email,
+                   role
+            FROM users
+            WHERE institutional_email = $1
+              AND is_active = TRUE
+            LIMIT 1;
+            """
+
+    row = await conn.fetchrow(query, email)
+    return {**row} if row else None
+
+
+async def get_active_user_by_id(conn: asyncpg.Connection, user_id: int) -> dict | None:
+    query = """
+            SELECT id,
+                   institutional_email,
+                   full_name,
+                   role,
+                   is_active
+            FROM users
+            WHERE id = $1
+              AND is_active = TRUE
+            LIMIT 1;
+            """
+
+    row = await conn.fetchrow(query, user_id)
+    return {**row} if row else None
+
+
+async def update_user_password(conn: asyncpg.Connection, user_id: int, password_hash: str) -> dict | None:
+    query = """
+            UPDATE users
+            SET password_hash = $1,
+                updated_at = NOW()
+            WHERE id = $2
+              AND is_active = TRUE
+            RETURNING
+                id,
+                institutional_email,
+                full_name,
+                role,
+                is_active,
+                created_at,
+                updated_at;
+            """
+
+    row = await conn.fetchrow(query, password_hash, user_id)
+    return {**row} if row else None
+
+
 async def create_student_user(conn: asyncpg.Connection, data: CreateStudentUserSchema) -> dict | None:
     query = """
             INSERT INTO users (
