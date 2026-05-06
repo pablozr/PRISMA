@@ -43,6 +43,20 @@ def get_safe_limit_offset(limit: int, offset: int, max_limit: int = 100, max_off
     return safe_limit, safe_offset
 
 
+def get_pagination_offset(page: int, page_size: int) -> int:
+    return max(page - 1, 0) * page_size
+
+
+def build_pagination(page: int, page_size: int, total: int) -> dict:
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+    return {
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages,
+    }
+
+
 def normalize_positive_int_list(values: Optional[list[int]]) -> Optional[list[int]]:
     if not values:
         return None

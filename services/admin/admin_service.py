@@ -4,6 +4,7 @@ from datetime import datetime
 from io import StringIO
 
 from fastapi import UploadFile
+from functions.utils.utils import build_pagination, get_pagination_offset
 
 from repositories.admin.admin_repository import (
     count_admin_projects,
@@ -46,21 +47,15 @@ async def get_dashboard_metrics(conn) -> dict:
 async def list_users(conn, query: AdminUsersListQuery) -> dict:
     total = await count_users(conn, query.q)
 
-    offset = (query.page - 1) * query.page_size
+    offset = get_pagination_offset(query.page, query.page_size)
     users = await list_users_paginated(conn, query.q, query.page_size, offset)
-    total_pages = (total + query.page_size - 1) // query.page_size if total else 0
 
     return {
         "status": True,
         "message": "Usuarios carregados com sucesso.",
         "data": {
             "users": users,
-            "pagination": {
-                "page": query.page,
-                "page_size": query.page_size,
-                "total": total,
-                "total_pages": total_pages,
-            },
+            "pagination": build_pagination(query.page, query.page_size, total),
         },
     }
 
@@ -84,21 +79,15 @@ async def update_user(conn, user_id: int, payload: AdminUserUpdateRequest) -> di
 async def list_projects(conn, query: AdminProjectsListQuery) -> dict:
     total = await count_admin_projects(conn, query.q)
 
-    offset = (query.page - 1) * query.page_size
+    offset = get_pagination_offset(query.page, query.page_size)
     projects = await list_admin_projects_paginated(conn, query.q, query.page_size, offset)
-    total_pages = (total + query.page_size - 1) // query.page_size if total else 0
 
     return {
         "status": True,
         "message": "Projetos carregados com sucesso.",
         "data": {
             "projects": projects,
-            "pagination": {
-                "page": query.page,
-                "page_size": query.page_size,
-                "total": total,
-                "total_pages": total_pages,
-            },
+            "pagination": build_pagination(query.page, query.page_size, total),
         },
     }
 
@@ -174,21 +163,15 @@ async def create_import_batch(conn, uploaded_by_user_id: int, file: UploadFile) 
 async def list_import_batches(conn, query: AdminImportsListQuery) -> dict:
     total = await count_import_batches(conn)
 
-    offset = (query.page - 1) * query.page_size
+    offset = get_pagination_offset(query.page, query.page_size)
     rows = await list_import_batches_paginated(conn, query.page_size, offset)
-    total_pages = (total + query.page_size - 1) // query.page_size if total else 0
 
     return {
         "status": True,
         "message": "Historico de importacoes carregado com sucesso.",
         "data": {
             "batches": rows,
-            "pagination": {
-                "page": query.page,
-                "page_size": query.page_size,
-                "total": total,
-                "total_pages": total_pages,
-            },
+            "pagination": build_pagination(query.page, query.page_size, total),
         },
     }
 
@@ -196,20 +179,14 @@ async def list_import_batches(conn, query: AdminImportsListQuery) -> dict:
 async def list_import_errors(conn, batch_id: int, query: AdminImportErrorsListQuery) -> dict:
     total = await count_import_errors_by_batch(conn, batch_id)
 
-    offset = (query.page - 1) * query.page_size
+    offset = get_pagination_offset(query.page, query.page_size)
     rows = await list_import_errors_by_batch_paginated(conn, batch_id, query.page_size, offset)
-    total_pages = (total + query.page_size - 1) // query.page_size if total else 0
 
     return {
         "status": True,
         "message": "Erros de importacao carregados com sucesso.",
         "data": {
             "errors": rows,
-            "pagination": {
-                "page": query.page,
-                "page_size": query.page_size,
-                "total": total,
-                "total_pages": total_pages,
-            },
+            "pagination": build_pagination(query.page, query.page_size, total),
         },
     }

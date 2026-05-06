@@ -1,4 +1,3 @@
-from math import ceil
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
@@ -13,6 +12,7 @@ from core.config.config import (
 )
 from core.logger.logger import logger
 from functions.utils.utils import (
+    build_pagination,
     extract_authenticated_user_context,
     service_response,
 )
@@ -77,7 +77,7 @@ async def list_projects(
         )
         encoded_projects = jsonable_encoder(projects)
 
-        total_pages = ceil(total / query.page_size) if total > 0 else 0
+        pagination = build_pagination(query.page, query.page_size, total)
 
         if not encoded_projects:
             return service_response(
@@ -85,12 +85,7 @@ async def list_projects(
                 "Nenhum projeto encontrado para os filtros informados.",
                 data={
                     "projetos": [],
-                    "paginacao": {
-                        "page": query.page,
-                        "page_size": query.page_size,
-                        "total": total,
-                        "total_pages": total_pages,
-                    },
+                    "paginacao": pagination,
                 },
             )
 
@@ -99,12 +94,7 @@ async def list_projects(
             "Projetos recuperados com sucesso.",
             data={
                 "projetos": encoded_projects,
-                "paginacao": {
-                    "page": query.page,
-                    "page_size": query.page_size,
-                    "total": total,
-                    "total_pages": total_pages,
-                },
+                "paginacao": pagination,
             },
         )
     except Exception as e:
@@ -180,7 +170,7 @@ async def list_my_projects(
             q=query.q,
         )
         encoded_projects = jsonable_encoder(projects)
-        total_pages = ceil(total / query.page_size) if total > 0 else 0
+        pagination = build_pagination(query.page, query.page_size, total)
 
         if not encoded_projects:
             return service_response(
@@ -188,12 +178,7 @@ async def list_my_projects(
                 "Nenhum projeto encontrado para o usuario autenticado.",
                 data={
                     "projetos": [],
-                    "paginacao": {
-                        "page": query.page,
-                        "page_size": query.page_size,
-                        "total": total,
-                        "total_pages": total_pages,
-                    },
+                    "paginacao": pagination,
                 },
             )
 
@@ -202,12 +187,7 @@ async def list_my_projects(
             "Projetos do usuario recuperados com sucesso.",
             data={
                 "projetos": encoded_projects,
-                "paginacao": {
-                    "page": query.page,
-                    "page_size": query.page_size,
-                    "total": total,
-                    "total_pages": total_pages,
-                },
+                "paginacao": pagination,
             },
         )
     except Exception as e:
