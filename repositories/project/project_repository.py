@@ -393,9 +393,6 @@ async def get_user_managed_projects(
     page_size: int,
     q: Optional[str],
 ) -> tuple[list[dict], int]:
-    normalized_q = (q or "").strip()
-    q_filter = f"%{normalized_q}%" if normalized_q else None
-
     count_query = """
         SELECT COUNT(*)::BIGINT AS total
         FROM projects p
@@ -407,14 +404,14 @@ async def get_user_managed_projects(
               OR p.responsible_user_id = $2
           )
           AND (
-              $3::TEXT IS NULL
-              OR p.title ILIKE $3
-              OR COALESCE(p.short_description, '') ILIKE $3
-              OR COALESCE(p.full_description, '') ILIKE $3
+              NULLIF(TRIM($3::TEXT), '') IS NULL
+              OR p.title ILIKE ('%' || TRIM($3::TEXT) || '%')
+              OR COALESCE(p.short_description, '') ILIKE ('%' || TRIM($3::TEXT) || '%')
+              OR COALESCE(p.full_description, '') ILIKE ('%' || TRIM($3::TEXT) || '%')
           );
     """
 
-    count_row = await conn.fetchrow(count_query, user_role, user_id, q_filter)
+    count_row = await conn.fetchrow(count_query, user_role, user_id, q)
     total = int(count_row["total"]) if count_row else 0
 
     offset = (page - 1) * page_size
@@ -507,17 +504,17 @@ async def get_user_managed_projects(
               OR p.responsible_user_id = $2
           )
           AND (
-              $3::TEXT IS NULL
-              OR p.title ILIKE $3
-              OR COALESCE(p.short_description, '') ILIKE $3
-              OR COALESCE(p.full_description, '') ILIKE $3
+              NULLIF(TRIM($3::TEXT), '') IS NULL
+              OR p.title ILIKE ('%' || TRIM($3::TEXT) || '%')
+              OR COALESCE(p.short_description, '') ILIKE ('%' || TRIM($3::TEXT) || '%')
+              OR COALESCE(p.full_description, '') ILIKE ('%' || TRIM($3::TEXT) || '%')
           )
         ORDER BY p.updated_at DESC, p.id DESC
         LIMIT $4
         OFFSET $5;
     """
 
-    rows = await conn.fetch(query, user_role, user_id, q_filter, page_size, offset)
+    rows = await conn.fetch(query, user_role, user_id, q, page_size, offset)
     return [{**row} for row in rows], total
 
 
