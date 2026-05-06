@@ -101,5 +101,5 @@ class RefreshTokenRequest(BaseRequestModel):
     def validate_refresh_token(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized:
-            raise ValueError("Refresh token ausente.")
+            raise ValueError("Token de atualizacao ausente.")
         return normalized

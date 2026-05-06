@@ -155,7 +155,7 @@ async def logout(redis_client: redis.Redis, session_id: str | None) -> dict:
 async def refresh_token(redis_client: redis.Redis, refresh_token: str) -> dict:
     try:
         if not refresh_token:
-            return service_response(status=False, message="Refresh token ausente")
+            return service_response(status=False, message="Token de atualizacao ausente")
 
         if refresh_token.startswith("Bearer "):
             refresh_token = refresh_token[7:]
