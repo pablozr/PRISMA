@@ -49,22 +49,22 @@ async def create_student_user(conn: asyncpg.Connection, data: CreateStudentUserS
     return {**row} if row else None
 
 
-async def count_users(conn: asyncpg.Connection, q_filter: str | None) -> int:
+async def count_users(conn: asyncpg.Connection, q: str | None) -> int:
     query = """
             SELECT COUNT(*)::BIGINT AS total
             FROM users u
-            WHERE $1::TEXT IS NULL
-               OR u.full_name ILIKE $1
-               OR u.institutional_email::TEXT ILIKE $1;
+            WHERE NULLIF(TRIM($1::TEXT), '') IS NULL
+               OR u.full_name ILIKE ('%' || TRIM($1::TEXT) || '%')
+               OR u.institutional_email::TEXT ILIKE ('%' || TRIM($1::TEXT) || '%');
             """
 
-    row = await conn.fetchrow(query, q_filter)
+    row = await conn.fetchrow(query, q)
     return int(row["total"]) if row else 0
 
 
 async def list_users_paginated(
     conn: asyncpg.Connection,
-    q_filter: str | None,
+    q: str | None,
     page_size: int,
     offset: int,
 ) -> list[dict]:
@@ -78,15 +78,15 @@ async def list_users_paginated(
                 u.created_at,
                 u.last_login_at
             FROM users u
-            WHERE $1::TEXT IS NULL
-               OR u.full_name ILIKE $1
-               OR u.institutional_email::TEXT ILIKE $1
+            WHERE NULLIF(TRIM($1::TEXT), '') IS NULL
+               OR u.full_name ILIKE ('%' || TRIM($1::TEXT) || '%')
+               OR u.institutional_email::TEXT ILIKE ('%' || TRIM($1::TEXT) || '%')
             ORDER BY u.created_at DESC, u.id DESC
             LIMIT $2
             OFFSET $3;
             """
 
-    rows = await conn.fetch(query, q_filter, page_size, offset)
+    rows = await conn.fetch(query, q, page_size, offset)
     return [{**row} for row in rows]
 
 

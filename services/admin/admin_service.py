@@ -44,13 +44,10 @@ async def get_dashboard_metrics(conn) -> dict:
 
 
 async def list_users(conn, query: AdminUsersListQuery) -> dict:
-    normalized_q = (query.q or "").strip()
-    q_filter = f"%{normalized_q}%" if normalized_q else None
-
-    total = await count_users(conn, q_filter)
+    total = await count_users(conn, query.q)
 
     offset = (query.page - 1) * query.page_size
-    users = await list_users_paginated(conn, q_filter, query.page_size, offset)
+    users = await list_users_paginated(conn, query.q, query.page_size, offset)
     total_pages = (total + query.page_size - 1) // query.page_size if total else 0
 
     return {
@@ -85,13 +82,10 @@ async def update_user(conn, user_id: int, payload: AdminUserUpdateRequest) -> di
 
 
 async def list_projects(conn, query: AdminProjectsListQuery) -> dict:
-    normalized_q = (query.q or "").strip()
-    q_filter = f"%{normalized_q}%" if normalized_q else None
-
-    total = await count_admin_projects(conn, q_filter)
+    total = await count_admin_projects(conn, query.q)
 
     offset = (query.page - 1) * query.page_size
-    projects = await list_admin_projects_paginated(conn, q_filter, query.page_size, offset)
+    projects = await list_admin_projects_paginated(conn, query.q, query.page_size, offset)
     total_pages = (total + query.page_size - 1) // query.page_size if total else 0
 
     return {

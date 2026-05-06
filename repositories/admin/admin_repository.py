@@ -14,25 +14,25 @@ async def get_dashboard_metrics_row(conn: asyncpg.Connection) -> dict | None:
     return {**row} if row else None
 
 
-async def count_admin_projects(conn: asyncpg.Connection, q_filter: str | None) -> int:
+async def count_admin_projects(conn: asyncpg.Connection, q: str | None) -> int:
     query = """
             SELECT COUNT(*)::BIGINT AS total
             FROM projects p
             LEFT JOIN users ru ON ru.id = p.responsible_user_id
-            WHERE $1::TEXT IS NULL
-               OR p.title ILIKE $1
-               OR COALESCE(p.short_description, '') ILIKE $1
-               OR COALESCE(ru.full_name, '') ILIKE $1
-               OR COALESCE(ru.institutional_email::TEXT, '') ILIKE $1;
+            WHERE NULLIF(TRIM($1::TEXT), '') IS NULL
+               OR p.title ILIKE ('%' || TRIM($1::TEXT) || '%')
+               OR COALESCE(p.short_description, '') ILIKE ('%' || TRIM($1::TEXT) || '%')
+               OR COALESCE(ru.full_name, '') ILIKE ('%' || TRIM($1::TEXT) || '%')
+               OR COALESCE(ru.institutional_email::TEXT, '') ILIKE ('%' || TRIM($1::TEXT) || '%');
             """
 
-    row = await conn.fetchrow(query, q_filter)
+    row = await conn.fetchrow(query, q)
     return int(row["total"]) if row else 0
 
 
 async def list_admin_projects_paginated(
     conn: asyncpg.Connection,
-    q_filter: str | None,
+    q: str | None,
     page_size: int,
     offset: int,
 ) -> list[dict]:
@@ -55,17 +55,17 @@ async def list_admin_projects_paginated(
                 END AS responsible_type
             FROM projects p
             LEFT JOIN users ru ON ru.id = p.responsible_user_id
-            WHERE $1::TEXT IS NULL
-               OR p.title ILIKE $1
-               OR COALESCE(p.short_description, '') ILIKE $1
-               OR COALESCE(ru.full_name, '') ILIKE $1
-               OR COALESCE(ru.institutional_email::TEXT, '') ILIKE $1
+            WHERE NULLIF(TRIM($1::TEXT), '') IS NULL
+               OR p.title ILIKE ('%' || TRIM($1::TEXT) || '%')
+               OR COALESCE(p.short_description, '') ILIKE ('%' || TRIM($1::TEXT) || '%')
+               OR COALESCE(ru.full_name, '') ILIKE ('%' || TRIM($1::TEXT) || '%')
+               OR COALESCE(ru.institutional_email::TEXT, '') ILIKE ('%' || TRIM($1::TEXT) || '%')
             ORDER BY p.updated_at DESC, p.id DESC
             LIMIT $2
             OFFSET $3;
             """
 
-    rows = await conn.fetch(query, q_filter, page_size, offset)
+    rows = await conn.fetch(query, q, page_size, offset)
     return [{**row} for row in rows]
 
 
