@@ -5,13 +5,18 @@ from starlette.responses import JSONResponse
 from core.logger.logger import logger
 
 
-async def default_response(callable_function: Callable, params: list = [], is_creation: bool = False,
-                           dict_response: bool = False):
+async def default_response(
+    callable_function: Callable,
+    params: list | None = None,
+    is_creation: bool = False,
+    dict_response: bool = False,
+):
     try:
+        call_params = params or []
         if is_async_callable(callable_function):
-            result = await callable_function(*params)
+            result = await callable_function(*call_params)
         else:
-            result = callable_function(*params)
+            result = callable_function(*call_params)
         if not result["status"]:
             if not dict_response:
                 return JSONResponse(status_code=400, content={"detail": result["message"]})
@@ -29,7 +34,7 @@ async def default_response(callable_function: Callable, params: list = [], is_cr
         return {"status": False, "message": "Erro interno com o servidor."}
 
 
-def service_response(status: bool, message: str,is_list: bool = None, data: dict | List[Any] = None) -> dict:
+def service_response(status: bool, message: str, is_list: bool = None, data: dict | List[Any] = None) -> dict:
     return {"status": status, "message": message, "data": data or ([] if is_list else {})}
 
 
