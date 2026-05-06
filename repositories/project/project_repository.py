@@ -99,19 +99,18 @@ def _build_projects_where_clause(
         )
         params.append(curso_ids)
 
-    normalized_q = (q or "").strip()
-    if normalized_q:
-        q_placeholder = f"${len(params) + 1}"
-        clauses.append(
-            f"""
-            (
-                p.title ILIKE {q_placeholder}
-                OR COALESCE(p.short_description, '') ILIKE {q_placeholder}
-                OR COALESCE(p.full_description, '') ILIKE {q_placeholder}
-            )
-            """
+    q_placeholder = f"${len(params) + 1}"
+    clauses.append(
+        f"""
+        (
+            NULLIF(TRIM({q_placeholder}::TEXT), '') IS NULL
+            OR p.title ILIKE ('%' || TRIM({q_placeholder}::TEXT) || '%')
+            OR COALESCE(p.short_description, '') ILIKE ('%' || TRIM({q_placeholder}::TEXT) || '%')
+            OR COALESCE(p.full_description, '') ILIKE ('%' || TRIM({q_placeholder}::TEXT) || '%')
         )
-        params.append(f"%{normalized_q}%")
+        """
+    )
+    params.append(q)
 
     return "\n      AND ".join(clauses), params
 
