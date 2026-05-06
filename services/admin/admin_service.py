@@ -4,7 +4,7 @@ from datetime import datetime
 from io import StringIO
 
 from fastapi import UploadFile
-from functions.utils.utils import build_pagination, get_pagination_offset
+from functions.utils.utils import build_pagination, get_pagination_offset, service_response
 
 from repositories.admin.admin_repository import (
     count_admin_projects,
@@ -30,10 +30,10 @@ from schemas.admin import (
 
 async def get_dashboard_metrics(conn) -> dict:
     row = await get_dashboard_metrics_row(conn)
-    return {
-        "status": True,
-        "message": "Metricas carregadas com sucesso.",
-        "data": {
+    return service_response(
+        status=True,
+        message="Metricas carregadas com sucesso.",
+        data={
             "metrics": {
                 "total_projects": int(row["total_projects"]) if row else 0,
                 "inactive_projects": int(row["inactive_projects"]) if row else 0,
@@ -41,7 +41,7 @@ async def get_dashboard_metrics(conn) -> dict:
                 "active_users": int(row["active_users"]) if row else 0,
             }
         },
-    }
+    )
 
 
 async def list_users(conn, query: AdminUsersListQuery) -> dict:
@@ -50,30 +50,26 @@ async def list_users(conn, query: AdminUsersListQuery) -> dict:
     offset = get_pagination_offset(query.page, query.page_size)
     users = await list_users_paginated(conn, query.q, query.page_size, offset)
 
-    return {
-        "status": True,
-        "message": "Usuarios carregados com sucesso.",
-        "data": {
+    return service_response(
+        status=True,
+        message="Usuarios carregados com sucesso.",
+        data={
             "users": users,
             "pagination": build_pagination(query.page, query.page_size, total),
         },
-    }
+    )
 
 
 async def update_user(conn, user_id: int, payload: AdminUserUpdateRequest) -> dict:
     if payload.role is None and payload.is_active is None:
-        return {"status": False, "message": "Nenhum campo valido informado para atualizacao.", "data": {}}
+        return service_response(status=False, message="Nenhum campo valido informado para atualizacao.")
 
     row = await update_user_fields(conn, user_id, payload.role, payload.is_active)
 
     if not row:
-        return {"status": False, "message": "Usuario nao encontrado.", "data": {}}
+        return service_response(status=False, message="Usuario nao encontrado.")
 
-    return {
-        "status": True,
-        "message": "Usuario atualizado com sucesso.",
-        "data": {"user": {**row}},
-    }
+    return service_response(status=True, message="Usuario atualizado com sucesso.", data={"user": {**row}})
 
 
 async def list_projects(conn, query: AdminProjectsListQuery) -> dict:
@@ -82,30 +78,26 @@ async def list_projects(conn, query: AdminProjectsListQuery) -> dict:
     offset = get_pagination_offset(query.page, query.page_size)
     projects = await list_admin_projects_paginated(conn, query.q, query.page_size, offset)
 
-    return {
-        "status": True,
-        "message": "Projetos carregados com sucesso.",
-        "data": {
+    return service_response(
+        status=True,
+        message="Projetos carregados com sucesso.",
+        data={
             "projects": projects,
             "pagination": build_pagination(query.page, query.page_size, total),
         },
-    }
+    )
 
 
 async def update_project(conn, project_id: int, payload: AdminProjectUpdateRequest) -> dict:
     if payload.status is None and payload.is_active is None:
-        return {"status": False, "message": "Nenhum campo valido informado para atualizacao.", "data": {}}
+        return service_response(status=False, message="Nenhum campo valido informado para atualizacao.")
 
     row = await update_admin_project_fields(conn, project_id, payload.status, payload.is_active)
 
     if not row:
-        return {"status": False, "message": "Projeto nao encontrado.", "data": {}}
+        return service_response(status=False, message="Projeto nao encontrado.")
 
-    return {
-        "status": True,
-        "message": "Projeto atualizado com sucesso.",
-        "data": {"project": {**row}},
-    }
+    return service_response(status=True, message="Projeto atualizado com sucesso.", data={"project": {**row}})
 
 
 def _infer_reference_term(now: datetime) -> int:
@@ -129,15 +121,11 @@ async def create_import_batch(conn, uploaded_by_user_id: int, file: UploadFile) 
     filename = file.filename or "import.csv"
     lower_name = filename.lower()
     if not (lower_name.endswith(".csv") or lower_name.endswith(".xlsx")):
-        return {
-            "status": False,
-            "message": "Formato invalido. Envie um arquivo .csv ou .xlsx.",
-            "data": {},
-        }
+        return service_response(status=False, message="Formato invalido. Envie um arquivo .csv ou .xlsx.")
 
     file_bytes = await file.read()
     if not file_bytes:
-        return {"status": False, "message": "Arquivo vazio.", "data": {}}
+        return service_response(status=False, message="Arquivo vazio.")
 
     now = datetime.utcnow()
     source_hash = hashlib.sha256(file_bytes).hexdigest()
@@ -153,11 +141,7 @@ async def create_import_batch(conn, uploaded_by_user_id: int, file: UploadFile) 
         total_rows,
     )
 
-    return {
-        "status": True,
-        "message": "Arquivo importado com sucesso.",
-        "data": {"batch": {**row}},
-    }
+    return service_response(status=True, message="Arquivo importado com sucesso.", data={"batch": {**row}})
 
 
 async def list_import_batches(conn, query: AdminImportsListQuery) -> dict:
@@ -166,14 +150,14 @@ async def list_import_batches(conn, query: AdminImportsListQuery) -> dict:
     offset = get_pagination_offset(query.page, query.page_size)
     rows = await list_import_batches_paginated(conn, query.page_size, offset)
 
-    return {
-        "status": True,
-        "message": "Historico de importacoes carregado com sucesso.",
-        "data": {
+    return service_response(
+        status=True,
+        message="Historico de importacoes carregado com sucesso.",
+        data={
             "batches": rows,
             "pagination": build_pagination(query.page, query.page_size, total),
         },
-    }
+    )
 
 
 async def list_import_errors(conn, batch_id: int, query: AdminImportErrorsListQuery) -> dict:
@@ -182,11 +166,11 @@ async def list_import_errors(conn, batch_id: int, query: AdminImportErrorsListQu
     offset = get_pagination_offset(query.page, query.page_size)
     rows = await list_import_errors_by_batch_paginated(conn, batch_id, query.page_size, offset)
 
-    return {
-        "status": True,
-        "message": "Erros de importacao carregados com sucesso.",
-        "data": {
+    return service_response(
+        status=True,
+        message="Erros de importacao carregados com sucesso.",
+        data={
             "errors": rows,
             "pagination": build_pagination(query.page, query.page_size, total),
         },
-    }
+    )
