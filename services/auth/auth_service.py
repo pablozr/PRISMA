@@ -17,10 +17,7 @@ from core.logger.logger import logger
 from core.security.hashing import verify_password, hash_password
 from core.security.security import create_token, decode_access_token
 from functions.utils.utils import build_login_success_response, extract_user_identity, service_response
-from repositories.professor.professor_repository import (
-    create_user_professor_registry,
-    get_active_professor_by_email,
-)
+from repositories.people.people_repository import create_user_from_person, get_person_by_email
 from repositories.user.user_repository import get_active_user_by_email
 from repositories.user.user_repository import (
     get_active_user_for_password_reset,
@@ -33,7 +30,6 @@ from schemas.auth.auth import (
     UserLoginRequest,
     ValidateCodeRequest,
 )
-from schemas.professor.professor import CreateProfessorSchema
 from integrations.google_oauth_client import google_oauth_client
 from services.cache import cache_service
 from services.queue import queue_service
@@ -77,7 +73,7 @@ async def _create_session_tokens(user: dict, redis_client: redis.Redis) -> tuple
 
     return access_token, refresh_token
 
-async def _create_professor_user_from_registry(
+async def _create_user_from_imported_person(
         conn: asyncpg.Connection,
         email: str,
         google_sub: str,
@@ -89,17 +85,10 @@ async def _create_professor_user_from_registry(
      - Se não existir um registro correspondente ou se o registro já tiver um user_id associado, retorna
      None, indicando que não foi possível criar um usuário do tipo professor com base no registro.
     """
-    professor = await get_active_professor_by_email(conn, email)
-    if not professor:
+    person = await get_person_by_email(conn, email)
+    if not person or person.get("user_id") is not None:
         return None
-
-    professor_data = CreateProfessorSchema(
-        institutional_email=email,
-        full_name=professor["full_name"],
-        google_sub=google_sub,
-    )
-
-    return await create_user_professor_registry(conn, professor_data)
+    return await create_user_from_person(conn, email, google_sub)
 
 
 async def _find_or_create_google_user(conn: asyncpg.Connection, google_user: dict) -> dict | None:
@@ -116,11 +105,7 @@ async def _find_or_create_google_user(conn: asyncpg.Connection, google_user: dic
         return None
 
     # Tenta achar um professor registrado com o email do Google e criar o usuário com base nesse registro
-    professor_user = await _create_professor_user_from_registry(conn, email, google_sub)
-    if professor_user:
-        return professor_user
-
-    return None
+    return await _create_user_from_imported_person(conn, email, google_sub)
 
 
 async def login(conn: asyncpg.Connection, redis_client: redis.Redis, login_data: UserLoginRequest) -> dict:
