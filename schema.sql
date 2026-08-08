@@ -8,11 +8,13 @@ CREATE TABLE users (
   institutional_email CITEXT NOT NULL UNIQUE,
   full_name TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('admin', 'professor', 'tecnico', 'aluno')),
-  google_sub TEXT NOT NULL UNIQUE,
+  password_hash TEXT,
+  google_sub TEXT UNIQUE,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   last_login_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (password_hash IS NOT NULL OR google_sub IS NOT NULL)
 );
 
 -- Cada execução representa a atualização quinzenal da base local.

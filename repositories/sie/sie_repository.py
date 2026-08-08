@@ -17,7 +17,7 @@ async def finish_sync_run(
     projects_upserted: int,
     participants_upserted: int,
     error_summary: str | None = None,
-) -> None:
+    ) -> None:
     await conn.execute(
         """
         UPDATE sync_runs
@@ -26,6 +26,18 @@ async def finish_sync_run(
         WHERE id = $1;
         """,
         sync_run_id, status, pages_processed, rows_received, projects_upserted, participants_upserted, error_summary,
+    )
+
+
+async def deactivate_stale_permissions(conn: asyncpg.Connection, sync_run_id: int) -> None:
+    await conn.execute(
+        """
+        UPDATE project_edit_permissions
+        SET is_active = FALSE, updated_at = NOW()
+        WHERE is_active = TRUE
+          AND granted_by_sync_run_id IS DISTINCT FROM $1;
+        """,
+        sync_run_id,
     )
 
 
@@ -74,6 +86,17 @@ async def upsert_project_bundle(
         """,
         participation["source_identity_key"], participation["cpf"], participation["full_name"],
         participation["institutional_email"], participation["profile"], sync_run_id,
+    )
+    await conn.execute(
+        """
+        UPDATE users
+        SET role = people.profile, updated_at = NOW()
+        FROM people
+        WHERE people.id = $1
+          AND users.id = people.user_id
+          AND users.role <> people.profile;
+        """,
+        person_id,
     )
     await conn.execute(
         """

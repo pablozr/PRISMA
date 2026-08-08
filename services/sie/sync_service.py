@@ -1,7 +1,7 @@
 import asyncpg
 
 from integrations.sie_client import SIEClient
-from repositories.sie.sie_repository import create_sync_run, finish_sync_run, upsert_project_bundle
+from repositories.sie.sie_repository import create_sync_run, deactivate_stale_permissions, finish_sync_run, upsert_project_bundle
 from services.sie.normalizer import normalize_participation, normalize_project
 
 
@@ -44,5 +44,6 @@ async def synchronize_sie(
         raise
 
     async with pool.acquire() as conn:
+        await deactivate_stale_permissions(conn, sync_run_id)
         await finish_sync_run(conn, sync_run_id, "success", pages, rows, projects, participants)
     return {"sync_run_id": sync_run_id, "pages": pages, "rows": rows, "projects": projects, "participants": participants}
