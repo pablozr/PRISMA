@@ -131,10 +131,10 @@ def test_update_my_project_maps_fields_and_updates(monkeypatch: pytest.MonkeyPat
         project_id=22,
         user_id=11,
         user_role="professor",
-        allowed_fields={
-            "full_description": "Descricao valida com tamanho",
-            "short_description": "Resumo valido do projeto",
-        },
+            allowed_fields={
+                "local_description": "Descricao valida com tamanho",
+                "local_short_description": "Resumo valido do projeto",
+            },
     )
 
 
