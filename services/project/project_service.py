@@ -217,8 +217,8 @@ async def update_my_project(
             return service_response(False, "Nenhum campo valido informado para atualizacao.")
 
         db_column_map = {
-            "descricao": "full_description",
-            "descricao_curta": "short_description",
+            "descricao": "local_description",
+            "descricao_curta": "local_short_description",
         }
 
         allowed_fields = {
