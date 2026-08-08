@@ -39,6 +39,33 @@ async def deactivate_stale_permissions(conn: asyncpg.Connection, sync_run_id: in
         """,
         sync_run_id,
     )
+    await conn.execute(
+        """UPDATE project_participations SET is_active=FALSE, updated_at=NOW()
+           WHERE is_active=TRUE AND last_seen_sync_run_id IS DISTINCT FROM $1""",
+        sync_run_id,
+    )
+
+
+async def _upsert_unit(
+    conn: asyncpg.Connection, name: str | None, unit_type: str, parent_unit_id: int | None = None
+) -> int | None:
+    if not name:
+        return None
+    normalized_name = name.strip()
+    if not normalized_name:
+        return None
+    existing = await conn.fetchval(
+        """SELECT id FROM organizational_units
+           WHERE name=$1 AND unit_type=$2 AND parent_unit_id IS NOT DISTINCT FROM $3""",
+        normalized_name, unit_type, parent_unit_id,
+    )
+    if existing:
+        return existing
+    return await conn.fetchval(
+        """INSERT INTO organizational_units(name, unit_type, parent_unit_id)
+           VALUES($1,$2,$3) RETURNING id""",
+        normalized_name, unit_type, parent_unit_id,
+    )
 
 
 async def upsert_project_bundle(
@@ -47,13 +74,17 @@ async def upsert_project_bundle(
     project: dict,
     participation: dict,
 ) -> tuple[int, int]:
+    center_id = await _upsert_unit(conn, project["center_name"], "centro")
+    executing_unit_id = await _upsert_unit(
+        conn, project["executing_unit_name"], "unidade", center_id
+    )
     project_id = await conn.fetchval(
         """
         INSERT INTO projects (sie_project_id, process_code, title, source_summary, source_status, source_type,
             source_classification_id, source_thematic_area, source_research_chamber, has_external_funding,
             ethics_committee, sisgen_code, registered_on, starts_at, ends_at, source_updated_on,
-            first_seen_sync_run_id, last_seen_sync_run_id)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$17)
+            center_id, executing_unit_id, first_seen_sync_run_id, last_seen_sync_run_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$19)
         ON CONFLICT (sie_project_id) DO UPDATE SET
           process_code=EXCLUDED.process_code, title=EXCLUDED.title, source_summary=EXCLUDED.source_summary,
           source_status=EXCLUDED.source_status, source_type=EXCLUDED.source_type,
@@ -61,6 +92,7 @@ async def upsert_project_bundle(
           source_research_chamber=EXCLUDED.source_research_chamber, has_external_funding=EXCLUDED.has_external_funding,
           ethics_committee=EXCLUDED.ethics_committee, sisgen_code=EXCLUDED.sisgen_code,
           registered_on=EXCLUDED.registered_on, starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at,
+          center_id=EXCLUDED.center_id, executing_unit_id=EXCLUDED.executing_unit_id,
           source_updated_on=EXCLUDED.source_updated_on, last_seen_sync_run_id=EXCLUDED.last_seen_sync_run_id,
           updated_at=NOW()
         RETURNING id;
@@ -69,9 +101,32 @@ async def upsert_project_bundle(
         project["source_status"], project["source_type"], project["source_classification_id"],
         project["source_thematic_area"], project["source_research_chamber"], project["has_external_funding"],
         project["ethics_committee"], project["sisgen_code"], project["registered_on"], project["starts_at"],
-        project["ends_at"], project["source_updated_on"], sync_run_id,
+        project["ends_at"], project["source_updated_on"], center_id, executing_unit_id, sync_run_id,
+    )
+    await conn.execute("DELETE FROM project_keywords WHERE project_id=$1", project_id)
+    await conn.executemany(
+        "INSERT INTO project_keywords(project_id, position, keyword) VALUES($1,$2,$3)",
+        [(project_id, position, keyword.strip()) for position, keyword in enumerate(project["keywords"], 1) if keyword and keyword.strip()],
     )
     person_id = await conn.fetchval(
+        """SELECT id FROM people
+           WHERE ($1::TEXT IS NOT NULL AND cpf=$1)
+              OR ($2::CITEXT IS NOT NULL AND institutional_email=$2)
+           LIMIT 1""",
+        participation["cpf"], participation["institutional_email"],
+    )
+    if person_id:
+        await conn.execute(
+            """UPDATE people SET full_name=$2,
+                 cpf=COALESCE(cpf,$3), institutional_email=COALESCE(institutional_email,$4),
+                 profile=CASE WHEN $5='professor' THEN 'professor'
+                              WHEN profile='professor' THEN 'professor'
+                              WHEN $5='tecnico' THEN 'tecnico' ELSE profile END,
+                 last_seen_sync_run_id=$6, updated_at=NOW() WHERE id=$1""",
+            person_id, participation["full_name"], participation["cpf"], participation["institutional_email"], participation["profile"], sync_run_id,
+        )
+    else:
+        person_id = await conn.fetchval(
         """
         INSERT INTO people (source_identity_key, cpf, full_name, institutional_email, profile,
             first_seen_sync_run_id, last_seen_sync_run_id)
@@ -84,9 +139,9 @@ async def upsert_project_bundle(
           last_seen_sync_run_id=EXCLUDED.last_seen_sync_run_id, updated_at=NOW()
         RETURNING id;
         """,
-        participation["source_identity_key"], participation["cpf"], participation["full_name"],
-        participation["institutional_email"], participation["profile"], sync_run_id,
-    )
+            participation["source_identity_key"], participation["cpf"], participation["full_name"],
+            participation["institutional_email"], participation["profile"], sync_run_id,
+        )
     await conn.execute(
         """
         UPDATE users
@@ -94,19 +149,21 @@ async def upsert_project_bundle(
         FROM people
         WHERE people.id = $1
           AND users.id = people.user_id
+          AND users.role <> 'admin'
           AND users.role <> people.profile;
         """,
         person_id,
     )
     await conn.execute(
         """
-        INSERT INTO project_participations (project_id, person_id, participant_function, scholarship_type,
+        INSERT INTO project_participations (project_id, person_id, source_fingerprint, participant_function, scholarship_type,
           participation_status, degree, project_email, standard_email, mobile_phone, landline_phone, weekly_hours,
           institutional_link, admission_method, job_description, work_schedule, departure_method, contract_status,
           possession_on, joined_on, left_on, participation_starts_on, participation_ends_on,
           first_seen_sync_run_id, last_seen_sync_run_id)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$23)
-        ON CONFLICT (project_id, person_id, participant_function) DO UPDATE SET
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$24)
+        ON CONFLICT (project_id, source_fingerprint) DO UPDATE SET
+          person_id=EXCLUDED.person_id, participant_function=EXCLUDED.participant_function,
           scholarship_type=EXCLUDED.scholarship_type, participation_status=EXCLUDED.participation_status,
           degree=EXCLUDED.degree, project_email=EXCLUDED.project_email, standard_email=EXCLUDED.standard_email,
           mobile_phone=EXCLUDED.mobile_phone, landline_phone=EXCLUDED.landline_phone, weekly_hours=EXCLUDED.weekly_hours,
@@ -115,9 +172,9 @@ async def upsert_project_bundle(
           departure_method=EXCLUDED.departure_method, contract_status=EXCLUDED.contract_status,
           possession_on=EXCLUDED.possession_on, joined_on=EXCLUDED.joined_on, left_on=EXCLUDED.left_on,
           participation_starts_on=EXCLUDED.participation_starts_on, participation_ends_on=EXCLUDED.participation_ends_on,
-          last_seen_sync_run_id=EXCLUDED.last_seen_sync_run_id, updated_at=NOW();
+          last_seen_sync_run_id=EXCLUDED.last_seen_sync_run_id, is_active=TRUE, updated_at=NOW();
         """,
-        project_id, person_id, participation["participant_function"], participation["scholarship_type"],
+        project_id, person_id, participation["participation_fingerprint"], participation["participant_function"], participation["scholarship_type"],
         participation["participation_status"], participation["degree"], participation["project_email"],
         participation["standard_email"], participation["mobile_phone"], participation["landline_phone"],
         participation["weekly_hours"], participation["institutional_link"], participation["admission_method"],

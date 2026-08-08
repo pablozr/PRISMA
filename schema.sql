@@ -102,12 +102,15 @@ CREATE TABLE project_keywords (
   PRIMARY KEY (project_id, position)
 );
 
+CREATE INDEX idx_projects_description_trgm ON projects USING gin ((COALESCE(local_short_description, source_summary)) gin_trgm_ops);
+
 -- Participação recebida do SIE. project_assignments não é reutilizada:
 -- participação representa pessoa/vínculo; oportunidade é conteúdo local.
 CREATE TABLE project_participations (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   person_id BIGINT NOT NULL REFERENCES people(id),
+  source_fingerprint TEXT NOT NULL,
   participant_function TEXT NOT NULL,
   scholarship_type TEXT,
   participation_status TEXT,
@@ -130,10 +133,13 @@ CREATE TABLE project_participations (
   participation_ends_on DATE,
   first_seen_sync_run_id BIGINT REFERENCES sync_runs(id),
   last_seen_sync_run_id BIGINT REFERENCES sync_runs(id),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (project_id, person_id, participant_function)
+  UNIQUE (project_id, source_fingerprint)
 );
+
+CREATE INDEX idx_project_participations_active ON project_participations (project_id, person_id) WHERE is_active;
 
 -- Permissão por projeto derivada da regra de negócio importada do SIE.
 -- Coordenador edita projeto coordenado; servidor edita projeto participado.

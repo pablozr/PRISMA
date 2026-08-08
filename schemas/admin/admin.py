@@ -22,7 +22,7 @@ class AdminUsersListQuery(AdminBaseSchema):
 
 
 class AdminUserUpdateRequest(AdminBaseSchema):
-    role: Optional[Literal["admin", "professor", "tecnico"]] = None
+    role: Optional[Literal["admin", "professor", "tecnico", "aluno"]] = None
     is_active: Optional[bool] = None
 
 

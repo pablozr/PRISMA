@@ -12,18 +12,21 @@ def _normalized_email(row: dict) -> str | None:
 
 
 def _profile(row: dict) -> str:
-    if row.get("funcao_participante", "").strip().lower() == "coordenador":
+    if str(row.get("funcao_participante") or "").strip().lower() == "coordenador":
         return "professor"
-    if row.get("tipo_vinculo_instituicao", "").strip().lower() == "servidor":
+    if str(row.get("tipo_vinculo_instituicao") or "").strip().lower() == "servidor":
         return "tecnico"
     return "aluno"
 
 
 def normalize_project(row: dict) -> dict:
+    title = str(row.get("titulo") or "").strip()
+    if not title or row.get("id_projeto") is None:
+        raise ValueError("SIE row requires id_projeto and titulo")
     return {
         "sie_project_id": int(row["id_projeto"]),
         "process_code": row.get("num_projeto"),
-        "title": row["titulo"].strip(),
+        "title": title,
         "source_summary": row.get("resumo_projeto"),
         "source_status": row.get("situacao_projeto"),
         "source_type": row.get("tipo_projeto"),
@@ -44,10 +47,14 @@ def normalize_project(row: dict) -> dict:
 
 
 def normalize_participation(row: dict) -> dict:
+    full_name = str(row.get("nome_participante") or "").strip()
+    participant_function = str(row.get("funcao_participante") or "").strip()
+    if not full_name or not participant_function:
+        raise ValueError("SIE row requires nome_participante and funcao_participante")
     email = _normalized_email(row)
-    identity = row.get("cpf") or email or f"{row.get('nome_participante')}:{row.get('id_projeto')}"
+    identity = row.get("cpf") or email or f"{full_name}:{row.get('id_projeto')}"
     fingerprint = hashlib.sha256(
-        f"{identity}:{row.get('id_projeto')}:{row.get('funcao_participante')}".encode()
+        f"{identity}:{row.get('id_projeto')}:{participant_function}".encode()
     ).hexdigest()
     permission_source = None
     if _profile(row) == "professor":
@@ -56,11 +63,11 @@ def normalize_participation(row: dict) -> dict:
         permission_source = "server_participant"
     return {
         "source_identity_key": hashlib.sha256(identity.encode()).hexdigest(),
-        "full_name": row["nome_participante"].strip(),
+        "full_name": full_name,
         "institutional_email": email,
         "cpf": row.get("cpf") or None,
         "profile": _profile(row),
-        "participant_function": row["funcao_participante"],
+        "participant_function": participant_function,
         "participation_fingerprint": fingerprint,
         "permission_source": permission_source,
         "scholarship_type": row.get("tipo_bolsa"),

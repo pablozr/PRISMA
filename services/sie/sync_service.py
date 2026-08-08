@@ -13,7 +13,8 @@ async def synchronize_sie(
     async with pool.acquire() as conn:
         sync_run_id = await create_sync_run(conn, page_size)
 
-    pages = rows = projects = participants = 0
+    pages = rows = participants = invalid_rows = 0
+    project_ids: set[int] = set()
     try:
         token = await client.fetch_access_token()
         start = 0
@@ -25,13 +26,15 @@ async def synchronize_sie(
             async with pool.acquire() as conn:
                 async with conn.transaction():
                     for row in page_rows:
-                        await upsert_project_bundle(
-                            conn,
-                            sync_run_id,
-                            normalize_project(row),
-                            normalize_participation(row),
-                        )
-                        projects += 1
+                        try:
+                            project = normalize_project(row)
+                            await upsert_project_bundle(
+                                conn, sync_run_id, project, normalize_participation(row)
+                            )
+                        except (KeyError, TypeError, ValueError):
+                            invalid_rows += 1
+                            continue
+                        project_ids.add(project["sie_project_id"])
                         participants += 1
             pages += 1
             rows += len(page_rows)
@@ -40,10 +43,13 @@ async def synchronize_sie(
             start += page_size
     except Exception as error:
         async with pool.acquire() as conn:
-            await finish_sync_run(conn, sync_run_id, "failed", pages, rows, projects, participants, str(error))
+            await finish_sync_run(conn, sync_run_id, "failed", pages, rows, len(project_ids), participants, str(error))
         raise
 
     async with pool.acquire() as conn:
-        await deactivate_stale_permissions(conn, sync_run_id)
-        await finish_sync_run(conn, sync_run_id, "success", pages, rows, projects, participants)
-    return {"sync_run_id": sync_run_id, "pages": pages, "rows": rows, "projects": projects, "participants": participants}
+        status = "partial" if invalid_rows else "success"
+        if status == "success":
+            await deactivate_stale_permissions(conn, sync_run_id)
+        error_summary = f"{invalid_rows} invalid SIE row(s) skipped" if invalid_rows else None
+        await finish_sync_run(conn, sync_run_id, status, pages, rows, len(project_ids), participants, error_summary)
+    return {"sync_run_id": sync_run_id, "pages": pages, "rows": rows, "projects": len(project_ids), "participants": participants}

@@ -18,6 +18,7 @@ class UserRole(StrEnum):
     ADMIN = "admin"
     TECNICO = "tecnico"
     PROFESSOR = "professor"
+    ALUNO = "aluno"
 
 
 class BaseSchema(BaseModel):

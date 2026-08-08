@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     SIE_PASSWORD: str | None = None
     SIE_SYNC_PAGE_SIZE: int = 500
     SIE_SYNC_INTERVAL_DAYS: int = 15
+    SIE_SYNC_RETRY_SECONDS: int = 300
 
     COOKIE_AUTH: str = "auth"
     COOKIE_AUTH_REFRESH: str = "refresh"
