@@ -11,6 +11,12 @@ def _normalized_email(row: dict) -> str | None:
     return value.strip().lower() if value else None
 
 
+def _optional_int(value: object) -> int | None:
+    if value in (None, ""):
+        return None
+    return int(value)
+
+
 def _profile(row: dict) -> str:
     if str(row.get("funcao_participante") or "").strip().lower() == "coordenador":
         return "professor"
@@ -77,7 +83,7 @@ def normalize_participation(row: dict) -> dict:
         "standard_email": row.get("email_padrao_participante"),
         "mobile_phone": row.get("fone_celular_participante"),
         "landline_phone": row.get("fone_fixo_participante"),
-        "weekly_hours": row.get("carga_horaria_semanal"),
+        "weekly_hours": _optional_int(row.get("carga_horaria_semanal")),
         "institutional_link": row.get("tipo_vinculo_instituicao"),
         "admission_method": row.get("forma_ingresso"),
         "job_description": row.get("descr_cargo"),

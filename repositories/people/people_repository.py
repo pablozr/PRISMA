@@ -14,6 +14,15 @@ async def get_person_by_email(conn: asyncpg.Connection, email: str) -> dict | No
     return dict(row) if row else None
 
 
+async def link_existing_user_to_person(conn: asyncpg.Connection, user_id: int, email: str) -> None:
+    await conn.execute(
+        """UPDATE people SET user_id=$1, updated_at=NOW()
+           WHERE institutional_email=$2 AND user_id IS NULL""",
+        user_id,
+        email,
+    )
+
+
 async def create_user_from_person(conn: asyncpg.Connection, email: str, google_sub: str) -> dict | None:
     row = await conn.fetchrow(
         """

@@ -17,7 +17,11 @@ from core.logger.logger import logger
 from core.security.hashing import verify_password, hash_password
 from core.security.security import create_token, decode_access_token
 from functions.utils.utils import build_login_success_response, extract_user_identity, service_response
-from repositories.people.people_repository import create_user_from_person, get_person_by_email
+from repositories.people.people_repository import (
+    create_user_from_person,
+    get_person_by_email,
+    link_existing_user_to_person,
+)
 from repositories.user.user_repository import get_active_user_by_email
 from repositories.user.user_repository import (
     get_active_user_for_password_reset,
@@ -98,6 +102,7 @@ async def _find_or_create_google_user(conn: asyncpg.Connection, google_user: dic
 
     user = await get_active_user_by_email(conn, email)
     if user:
+        await link_existing_user_to_person(conn, user["id"], email)
         return user
 
     google_sub = google_user.get("sub")

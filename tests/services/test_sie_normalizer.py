@@ -25,3 +25,10 @@ def test_student_cannot_edit_and_nullable_source_values_are_supported():
 def test_missing_participant_identity_is_rejected():
     with pytest.raises(ValueError):
         normalize_participation({"id_projeto": 1, "funcao_participante": "Bolsista"})
+
+
+def test_participation_normalizes_textual_weekly_hours():
+    participation = normalize_participation(
+        {"id_projeto": 1, "nome_participante": "Ana", "funcao_participante": "Bolsista", "carga_horaria_semanal": "20"}
+    )
+    assert participation["weekly_hours"] == 20

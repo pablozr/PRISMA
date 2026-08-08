@@ -31,3 +31,20 @@ def test_google_login_requires_imported_person(monkeypatch) -> None:
     )
 
     assert result is None
+
+
+def test_existing_google_user_is_linked_to_imported_person(monkeypatch) -> None:
+    conn = object()
+    user = {"id": 20, "institutional_email": "aluno@edu.unirio.br", "role": "aluno"}
+    monkeypatch.setattr(auth_service, "get_active_user_by_email", AsyncMock(return_value=user))
+    link_person = AsyncMock()
+    monkeypatch.setattr(auth_service, "link_existing_user_to_person", link_person)
+
+    result = asyncio.run(
+        auth_service._find_or_create_google_user(
+            conn, {"email": "aluno@edu.unirio.br", "sub": "google-sub"}
+        )
+    )
+
+    assert result == user
+    link_person.assert_awaited_once_with(conn, 20, "aluno@edu.unirio.br")
