@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     HTTP_CLIENT_MAX_CONNECTIONS: int = 100
     HTTP_CLIENT_MAX_KEEPALIVE_CONNECTIONS: int = 20
 
+    SIE_API_BASE_URL: str = "https://api.unirio.br/api/v2"
+    SIE_EMAIL: str | None = None
+    SIE_PASSWORD: str | None = None
+    SIE_SYNC_PAGE_SIZE: int = 500
+    SIE_SYNC_INTERVAL_DAYS: int = 15
+
     COOKIE_AUTH: str = "auth"
     COOKIE_AUTH_REFRESH: str = "refresh"
     COOKIE_AUTH_RESET: str = "reset"
