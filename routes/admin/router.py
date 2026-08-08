@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends
 
 from core.postgresql.postgresql import postgresql
 from core.security import security
@@ -66,15 +66,6 @@ async def patch_admin_project(
     conn=Depends(postgresql.get_db),
 ):
     return await default_response(admin_service.update_project, [conn, project_id, payload])
-
-
-@router.post("/imports")
-async def post_admin_import(
-    file: UploadFile = File(...),
-    user=Depends(security.require_admin_rank()),
-    conn=Depends(postgresql.get_db),
-):
-    return await default_response(admin_service.create_import_batch, [conn, user["id"], file], is_creation=True)
 
 
 @router.get("/imports")

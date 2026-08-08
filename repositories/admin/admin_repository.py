@@ -2,210 +2,123 @@ import asyncpg
 
 
 async def get_dashboard_metrics_row(conn: asyncpg.Connection) -> dict | None:
-    query = """
-            SELECT
-                (SELECT COUNT(*)::BIGINT FROM projects) AS total_projects,
-                (SELECT COUNT(*)::BIGINT FROM projects WHERE is_active = FALSE) AS inactive_projects,
-                (SELECT COUNT(*)::BIGINT FROM users) AS total_users,
-                (SELECT COUNT(*)::BIGINT FROM users WHERE is_active = TRUE) AS active_users;
-            """
+    row = await conn.fetchrow(
+        """
+        SELECT
+          (SELECT COUNT(*)::BIGINT FROM projects) AS total_projects,
+          (SELECT COUNT(*)::BIGINT FROM projects WHERE is_visible=FALSE) AS inactive_projects,
+          (SELECT COUNT(*)::BIGINT FROM users) AS total_users,
+          (SELECT COUNT(*)::BIGINT FROM users WHERE is_active=TRUE) AS active_users;
+        """
+    )
+    return dict(row) if row else None
 
-    row = await conn.fetchrow(query)
-    return {**row} if row else None
+
+def _project_search_clause() -> str:
+    return """NULLIF(TRIM($1::TEXT), '') IS NULL
+        OR p.title ILIKE ('%' || TRIM($1::TEXT) || '%')
+        OR COALESCE(p.local_short_description, p.source_summary, '') ILIKE ('%' || TRIM($1::TEXT) || '%')
+        OR COALESCE(coordinator.full_name, '') ILIKE ('%' || TRIM($1::TEXT) || '%')
+        OR COALESCE(coordinator.institutional_email::TEXT, '') ILIKE ('%' || TRIM($1::TEXT) || '%')"""
 
 
 async def count_admin_projects(conn: asyncpg.Connection, q: str | None) -> int:
-    query = """
-            SELECT COUNT(*)::BIGINT AS total
-            FROM projects p
-            LEFT JOIN users ru ON ru.id = p.responsible_user_id
-            WHERE NULLIF(TRIM($1::TEXT), '') IS NULL
-               OR p.title ILIKE ('%' || TRIM($1::TEXT) || '%')
-               OR COALESCE(p.short_description, '') ILIKE ('%' || TRIM($1::TEXT) || '%')
-               OR COALESCE(ru.full_name, '') ILIKE ('%' || TRIM($1::TEXT) || '%')
-               OR COALESCE(ru.institutional_email::TEXT, '') ILIKE ('%' || TRIM($1::TEXT) || '%');
-            """
-
-    row = await conn.fetchrow(query, q)
+    row = await conn.fetchrow(
+        f"""SELECT COUNT(*)::BIGINT AS total FROM projects p
+            LEFT JOIN LATERAL (
+              SELECT person.full_name, person.institutional_email
+              FROM project_edit_permissions permission JOIN people person ON person.id=permission.person_id
+              WHERE permission.project_id=p.id AND permission.is_active=TRUE
+              ORDER BY CASE permission.permission_source WHEN 'coordinator' THEN 0 ELSE 1 END, person.id LIMIT 1
+            ) coordinator ON TRUE
+            WHERE {_project_search_clause()};""",
+        q,
+    )
     return int(row["total"]) if row else 0
 
 
 async def list_admin_projects_paginated(
-    conn: asyncpg.Connection,
-    q: str | None,
-    page_size: int,
-    offset: int,
+    conn: asyncpg.Connection, q: str | None, page_size: int, offset: int
 ) -> list[dict]:
-    query = """
-            SELECT
-                p.id,
-                p.process_code,
-                p.title,
-                p.short_description,
-                p.status,
-                p.is_active,
-                p.updated_at,
-                p.published_at,
-                p.responsible_user_id AS responsible_id,
-                ru.full_name AS responsible_name,
-                ru.institutional_email::TEXT AS responsible_email,
-                CASE
-                    WHEN ru.role = 'tecnico' THEN 'tecnico'
-                    ELSE 'docente'
-                END AS responsible_type
-            FROM projects p
-            LEFT JOIN users ru ON ru.id = p.responsible_user_id
-            WHERE NULLIF(TRIM($1::TEXT), '') IS NULL
-               OR p.title ILIKE ('%' || TRIM($1::TEXT) || '%')
-               OR COALESCE(p.short_description, '') ILIKE ('%' || TRIM($1::TEXT) || '%')
-               OR COALESCE(ru.full_name, '') ILIKE ('%' || TRIM($1::TEXT) || '%')
-               OR COALESCE(ru.institutional_email::TEXT, '') ILIKE ('%' || TRIM($1::TEXT) || '%')
-            ORDER BY p.updated_at DESC, p.id DESC
-            LIMIT $2
-            OFFSET $3;
-            """
-
-    rows = await conn.fetch(query, q, page_size, offset)
-    return [{**row} for row in rows]
+    rows = await conn.fetch(
+        f"""
+        SELECT p.id, p.process_code, p.title,
+               COALESCE(p.local_short_description, p.source_summary) AS short_description,
+               p.publication_status AS status, p.is_visible AS is_active,
+               p.updated_at, p.published_at,
+               coordinator.user_id AS responsible_id, coordinator.full_name AS responsible_name,
+               coordinator.institutional_email::TEXT AS responsible_email,
+               CASE WHEN coordinator.profile='tecnico' THEN 'tecnico' ELSE 'docente' END AS responsible_type
+        FROM projects p
+        LEFT JOIN LATERAL (
+          SELECT person.user_id, person.full_name, person.institutional_email, person.profile
+          FROM project_edit_permissions permission
+          JOIN people person ON person.id=permission.person_id
+          WHERE permission.project_id=p.id AND permission.is_active=TRUE
+          ORDER BY CASE permission.permission_source WHEN 'coordinator' THEN 0 ELSE 1 END, person.id
+          LIMIT 1
+        ) coordinator ON TRUE
+        WHERE {_project_search_clause()}
+        ORDER BY p.updated_at DESC, p.id DESC LIMIT $2 OFFSET $3;
+        """,
+        q, page_size, offset,
+    )
+    return [dict(row) for row in rows]
 
 
 async def update_admin_project_fields(
-    conn: asyncpg.Connection,
-    project_id: int,
-    status: str | None,
-    is_active: bool | None,
+    conn: asyncpg.Connection, project_id: int, status: str | None, is_active: bool | None
 ) -> dict | None:
     updates: list[str] = []
     params: list[object] = [project_id]
-
     if status is not None:
         params.append(status)
-        updates.append(f"status = ${len(params)}")
-
+        updates.append(f"publication_status=${len(params)}")
     if is_active is not None:
         params.append(is_active)
-        updates.append(f"is_active = ${len(params)}")
-        if is_active:
-            updates.append("deactivated_at = NULL")
-        else:
-            updates.append("deactivated_at = NOW()")
-
+        updates.append(f"is_visible=${len(params)}")
     if not updates:
         return None
-
-    updates.append("updated_at = NOW()")
-    query = f"""
-            UPDATE projects p
-            SET {', '.join(updates)}
-            WHERE p.id = $1
-            RETURNING
-                p.id,
-                p.process_code,
-                p.title,
-                p.short_description,
-                p.status,
-                p.is_active,
-                p.updated_at,
-                p.published_at,
-                p.responsible_user_id AS responsible_id;
-            """
-
-    row = await conn.fetchrow(query, *params)
-    return {**row} if row else None
-
-
-async def create_import_batch_row(
-    conn: asyncpg.Connection,
-    reference_year: int,
-    reference_term: int,
-    uploaded_by_user_id: int,
-    filename: str,
-    source_hash: str,
-    total_rows: int,
-) -> dict | None:
-    query = """
-            INSERT INTO import_batches (
-                reference_year,
-                reference_term,
-                uploaded_by_user_id,
-                source_filename,
-                source_hash,
-                status,
-                total_rows,
-                imported_rows,
-                rejected_rows,
-                created_at,
-                finished_at
-            )
-            VALUES ($1, $2, $3, $4, $5, 'success', $6, $6, 0, NOW(), NOW())
-            RETURNING id, status, total_rows, imported_rows, rejected_rows, created_at, finished_at;
-            """
-
+    updates.append("published_at=CASE WHEN is_visible=TRUE AND publication_status='published' THEN COALESCE(published_at, NOW()) ELSE published_at END")
+    updates.append("updated_at=NOW()")
     row = await conn.fetchrow(
-        query,
-        reference_year,
-        reference_term,
-        uploaded_by_user_id,
-        filename,
-        source_hash,
-        total_rows,
+        f"""UPDATE projects SET {', '.join(updates)} WHERE id=$1
+            RETURNING id, process_code, title,
+              COALESCE(local_short_description, source_summary) AS short_description,
+              publication_status AS status, is_visible AS is_active, updated_at, published_at;""",
+        *params,
     )
-    return {**row} if row else None
+    return dict(row) if row else None
 
 
 async def count_import_batches(conn: asyncpg.Connection) -> int:
-    row = await conn.fetchrow("SELECT COUNT(*)::BIGINT AS total FROM import_batches;")
-    return int(row["total"]) if row else 0
+    return int(await conn.fetchval("SELECT COUNT(*) FROM sync_runs"))
 
 
 async def list_import_batches_paginated(conn: asyncpg.Connection, page_size: int, offset: int) -> list[dict]:
-    query = """
-            SELECT
-                ib.id,
-                ib.reference_year,
-                ib.reference_term,
-                ib.source_filename,
-                ib.source_hash,
-                ib.status,
-                ib.total_rows,
-                ib.imported_rows,
-                ib.rejected_rows,
-                ib.created_at,
-                ib.finished_at,
-                u.id AS uploaded_by_user_id,
-                u.full_name AS uploaded_by_name,
-                u.institutional_email::TEXT AS uploaded_by_email
-            FROM import_batches ib
-            LEFT JOIN users u ON u.id = ib.uploaded_by_user_id
-            ORDER BY ib.created_at DESC, ib.id DESC
-            LIMIT $1
-            OFFSET $2;
-            """
-
-    rows = await conn.fetch(query, page_size, offset)
-    return [{**row} for row in rows]
+    rows = await conn.fetch(
+        """SELECT id, 'SIE API' AS source_filename, status, rows_received AS total_rows,
+                  participants_upserted AS imported_rows, 0::BIGINT AS rejected_rows,
+                  started_at AS created_at, finished_at
+           FROM sync_runs ORDER BY started_at DESC, id DESC LIMIT $1 OFFSET $2""",
+        page_size, offset,
+    )
+    return [dict(row) for row in rows]
 
 
 async def count_import_errors_by_batch(conn: asyncpg.Connection, batch_id: int) -> int:
-    query = "SELECT COUNT(*)::BIGINT AS total FROM import_row_errors WHERE import_batch_id = $1;"
-    row = await conn.fetchrow(query, batch_id)
-    return int(row["total"]) if row else 0
+    return int(await conn.fetchval(
+        "SELECT COUNT(*) FROM sync_runs WHERE id=$1 AND error_summary IS NOT NULL", batch_id
+    ))
 
 
 async def list_import_errors_by_batch_paginated(
-    conn: asyncpg.Connection,
-    batch_id: int,
-    page_size: int,
-    offset: int,
+    conn: asyncpg.Connection, batch_id: int, page_size: int, offset: int
 ) -> list[dict]:
-    query = """
-            SELECT id, import_batch_id, row_number, raw_payload, error_reason, created_at
-            FROM import_row_errors
-            WHERE import_batch_id = $1
-            ORDER BY row_number ASC, id ASC
-            LIMIT $2
-            OFFSET $3;
-            """
-
-    rows = await conn.fetch(query, batch_id, page_size, offset)
-    return [{**row} for row in rows]
+    rows = await conn.fetch(
+        """SELECT id, id AS import_batch_id, 0::INTEGER AS row_number,
+                  NULL::JSONB AS raw_payload, error_summary AS error_reason, finished_at AS created_at
+           FROM sync_runs WHERE id=$1 AND error_summary IS NOT NULL LIMIT $2 OFFSET $3""",
+        batch_id, page_size, offset,
+    )
+    return [dict(row) for row in rows]

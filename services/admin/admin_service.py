@@ -1,16 +1,9 @@
-import csv
-import hashlib
-from datetime import datetime
-from io import StringIO
-
-from fastapi import UploadFile
 from functions.utils.utils import build_pagination, get_pagination_offset, service_response
 
 from repositories.admin.admin_repository import (
     count_admin_projects,
     count_import_batches,
     count_import_errors_by_batch,
-    create_import_batch_row,
     get_dashboard_metrics_row,
     list_admin_projects_paginated,
     list_import_batches_paginated,
@@ -98,50 +91,6 @@ async def update_project(conn, project_id: int, payload: AdminProjectUpdateReque
         return service_response(status=False, message="Projeto nao encontrado.")
 
     return service_response(status=True, message="Projeto atualizado com sucesso.", data={"project": {**row}})
-
-
-def _infer_reference_term(now: datetime) -> int:
-    return 1 if now.month <= 6 else 2
-
-
-def _count_csv_rows(file_bytes: bytes) -> int:
-    try:
-        content = file_bytes.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        content = file_bytes.decode("latin-1")
-
-    reader = csv.reader(StringIO(content))
-    rows = [row for row in reader if any((cell or "").strip() for cell in row)]
-    if not rows:
-        return 0
-    return max(len(rows) - 1, 0)
-
-
-async def create_import_batch(conn, uploaded_by_user_id: int, file: UploadFile) -> dict:
-    filename = file.filename or "import.csv"
-    lower_name = filename.lower()
-    if not (lower_name.endswith(".csv") or lower_name.endswith(".xlsx")):
-        return service_response(status=False, message="Formato invalido. Envie um arquivo .csv ou .xlsx.")
-
-    file_bytes = await file.read()
-    if not file_bytes:
-        return service_response(status=False, message="Arquivo vazio.")
-
-    now = datetime.utcnow()
-    source_hash = hashlib.sha256(file_bytes).hexdigest()
-    total_rows = _count_csv_rows(file_bytes) if lower_name.endswith(".csv") else 0
-
-    row = await create_import_batch_row(
-        conn,
-        now.year,
-        _infer_reference_term(now),
-        uploaded_by_user_id,
-        filename,
-        source_hash,
-        total_rows,
-    )
-
-    return service_response(status=True, message="Arquivo importado com sucesso.", data={"batch": {**row}})
 
 
 async def list_import_batches(conn, query: AdminImportsListQuery) -> dict:
