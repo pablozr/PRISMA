@@ -1,95 +1,152 @@
 CREATE EXTENSION IF NOT EXISTS citext;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
+-- Contas só existem depois do primeiro login Google. A pessoa importada
+-- pelo SIE fica em people até então.
 CREATE TABLE users (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   institutional_email CITEXT NOT NULL UNIQUE,
   full_name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('admin', 'professor', 'tecnico')),
-  password_hash TEXT,
-  google_sub TEXT UNIQUE,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'professor', 'tecnico', 'aluno')),
+  google_sub TEXT NOT NULL UNIQUE,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   last_login_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CHECK (password_hash IS NOT NULL OR google_sub IS NOT NULL)
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE import_batches (
+-- Cada execução representa a atualização quinzenal da base local.
+CREATE TABLE sync_runs (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  reference_year SMALLINT NOT NULL,
-  reference_term SMALLINT NOT NULL CHECK (reference_term IN (1, 2)),
-  uploaded_by_user_id BIGINT NOT NULL REFERENCES users(id),
-  source_filename TEXT NOT NULL,
-  source_hash TEXT NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('processing', 'success', 'partial', 'failed')),
-  total_rows INTEGER NOT NULL DEFAULT 0,
-  imported_rows INTEGER NOT NULL DEFAULT 0,
-  rejected_rows INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  finished_at TIMESTAMPTZ
+  status TEXT NOT NULL CHECK (status IN ('running', 'success', 'partial', 'failed')),
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  finished_at TIMESTAMPTZ,
+  page_size INTEGER NOT NULL CHECK (page_size > 0),
+  pages_processed INTEGER NOT NULL DEFAULT 0 CHECK (pages_processed >= 0),
+  rows_received INTEGER NOT NULL DEFAULT 0 CHECK (rows_received >= 0),
+  projects_upserted INTEGER NOT NULL DEFAULT 0 CHECK (projects_upserted >= 0),
+  participants_upserted INTEGER NOT NULL DEFAULT 0 CHECK (participants_upserted >= 0),
+  payload_hash TEXT,
+  error_summary TEXT
 );
 
+-- Centro e unidade responsável recebidos do SIE; a hierarquia permite
+-- centro -> unidade sem repetir texto em cada projeto.
 CREATE TABLE organizational_units (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   name TEXT NOT NULL,
-  short_name TEXT,
-  type TEXT NOT NULL CHECK (type IN ('centro', 'escola', 'instituto', 'departamento')),
+  unit_type TEXT NOT NULL CHECK (unit_type IN ('centro', 'unidade')),
   parent_unit_id BIGINT REFERENCES organizational_units(id),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (name, unit_type, parent_unit_id)
 );
 
-CREATE TABLE professor_registry (
+-- Pessoa institucional importada. source_identity_key é calculada pelo
+-- sincronizador a partir dos identificadores SIE disponíveis e evita duplicação.
+CREATE TABLE people (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  institutional_email CITEXT NOT NULL UNIQUE,
+  source_identity_key TEXT NOT NULL UNIQUE,
+  cpf TEXT UNIQUE,
   full_name TEXT NOT NULL,
-  siape TEXT UNIQUE,
-  department_unit_id BIGINT REFERENCES organizational_units(id),
+  institutional_email CITEXT UNIQUE,
+  profile TEXT NOT NULL CHECK (profile IN ('professor', 'tecnico', 'aluno')),
   user_id BIGINT UNIQUE REFERENCES users(id),
-  source_import_batch_id BIGINT REFERENCES import_batches(id),
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  first_seen_sync_run_id BIGINT REFERENCES sync_runs(id),
+  last_seen_sync_run_id BIGINT REFERENCES sync_runs(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE project_types (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
-  slug TEXT NOT NULL UNIQUE CHECK (slug IN ('extensao', 'iniciacao_cientifica')),
-  is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-INSERT INTO project_types (name, slug, is_enabled)
-VALUES
-  ('Extensao', 'extensao', TRUE),
-  ('Iniciacao Cientifica', 'iniciacao_cientifica', TRUE);
-
-
+-- Projeto institucional e catálogo local são o mesmo agregado: os campos
+-- source_* pertencem ao SIE; os campos local_* pertencem exclusivamente ao PRISMA.
 CREATE TABLE projects (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  sie_project_id BIGINT NOT NULL UNIQUE,
   process_code TEXT,
   title TEXT NOT NULL,
-  short_description TEXT,
-  full_description TEXT,
-  contact_email CITEXT NOT NULL,
-  responsible_user_id BIGINT NOT NULL REFERENCES users(id),
+  source_summary TEXT,
+  local_short_description TEXT,
+  local_description TEXT,
+  center_id BIGINT REFERENCES organizational_units(id),
   executing_unit_id BIGINT REFERENCES organizational_units(id),
-  source_import_batch_id BIGINT REFERENCES import_batches(id),
-  project_type_id BIGINT REFERENCES project_types(id),
-  status TEXT NOT NULL CHECK (status IN ('draft', 'published', 'archived')),
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  source_status TEXT,
+  source_type TEXT,
+  source_classification_id INTEGER,
+  source_thematic_area TEXT,
+  source_research_chamber TEXT,
+  has_external_funding BOOLEAN,
+  ethics_committee TEXT,
+  sisgen_code TEXT,
+  registered_on DATE,
   starts_at DATE,
   ends_at DATE,
+  source_updated_on DATE,
+  first_seen_sync_run_id BIGINT REFERENCES sync_runs(id),
+  last_seen_sync_run_id BIGINT REFERENCES sync_runs(id),
+  publication_status TEXT NOT NULL DEFAULT 'draft'
+    CHECK (publication_status IN ('draft', 'published', 'archived')),
+  is_visible BOOLEAN NOT NULL DEFAULT FALSE,
+  published_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  published_at TIMESTAMPTZ,
-  deactivated_at TIMESTAMPTZ,
   CHECK (ends_at IS NULL OR starts_at IS NULL OR ends_at >= starts_at)
 );
 
+CREATE TABLE project_keywords (
+  project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  position SMALLINT NOT NULL CHECK (position BETWEEN 1 AND 4),
+  keyword TEXT NOT NULL,
+  PRIMARY KEY (project_id, position)
+);
+
+-- Participação recebida do SIE. project_assignments não é reutilizada:
+-- participação representa pessoa/vínculo; oportunidade é conteúdo local.
+CREATE TABLE project_participations (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  person_id BIGINT NOT NULL REFERENCES people(id),
+  participant_function TEXT NOT NULL,
+  scholarship_type TEXT,
+  participation_status TEXT,
+  degree TEXT,
+  project_email CITEXT,
+  standard_email CITEXT,
+  mobile_phone TEXT,
+  landline_phone TEXT,
+  weekly_hours INTEGER CHECK (weekly_hours >= 0),
+  institutional_link TEXT,
+  admission_method TEXT,
+  job_description TEXT,
+  work_schedule TEXT,
+  departure_method TEXT,
+  contract_status TEXT,
+  possession_on DATE,
+  joined_on DATE,
+  left_on DATE,
+  participation_starts_on DATE,
+  participation_ends_on DATE,
+  first_seen_sync_run_id BIGINT REFERENCES sync_runs(id),
+  last_seen_sync_run_id BIGINT REFERENCES sync_runs(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (project_id, person_id, participant_function)
+);
+
+-- Permissão por projeto derivada da regra de negócio importada do SIE.
+-- Coordenador edita projeto coordenado; servidor edita projeto participado.
+CREATE TABLE project_edit_permissions (
+  project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  person_id BIGINT NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+  permission_source TEXT NOT NULL CHECK (permission_source IN ('coordinator', 'server_participant')),
+  granted_by_sync_run_id BIGINT REFERENCES sync_runs(id),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (project_id, person_id, permission_source)
+);
+
+-- Dados adicionais exclusivos do PRISMA.
 CREATE TABLE project_images (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -100,25 +157,13 @@ CREATE TABLE project_images (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX uq_project_single_cover
-  ON project_images(project_id)
-  WHERE image_type = 'cover';
-
-CREATE TABLE courses (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  offering_unit_id BIGINT REFERENCES organizational_units(id),
-  name TEXT NOT NULL,
-  level TEXT NOT NULL CHECK (level IN ('graduacao', 'pos')),
-  code TEXT UNIQUE,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+CREATE UNIQUE INDEX uq_project_cover
+  ON project_images(project_id) WHERE image_type = 'cover';
 
 CREATE TABLE project_areas (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
-  slug TEXT NOT NULL UNIQUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  slug TEXT NOT NULL UNIQUE
 );
 
 CREATE TABLE project_area_links (
@@ -127,13 +172,21 @@ CREATE TABLE project_area_links (
   PRIMARY KEY (project_id, area_id)
 );
 
+CREATE TABLE courses (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name TEXT NOT NULL,
+  code TEXT UNIQUE,
+  offering_unit_id BIGINT REFERENCES organizational_units(id),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+
 CREATE TABLE project_course_links (
   project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   course_id BIGINT NOT NULL REFERENCES courses(id),
   PRIMARY KEY (project_id, course_id)
 );
 
-CREATE TABLE project_assignments (
+CREATE TABLE project_opportunities (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   description TEXT NOT NULL,
@@ -143,146 +196,25 @@ CREATE TABLE project_assignments (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE project_assignment_courses (
-  project_assignment_id BIGINT NOT NULL REFERENCES project_assignments(id) ON DELETE CASCADE,
+CREATE TABLE project_opportunity_courses (
+  opportunity_id BIGINT NOT NULL REFERENCES project_opportunities(id) ON DELETE CASCADE,
   course_id BIGINT NOT NULL REFERENCES courses(id),
-  PRIMARY KEY (project_assignment_id, course_id)
+  PRIMARY KEY (opportunity_id, course_id)
 );
 
-CREATE TABLE import_row_errors (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  import_batch_id BIGINT NOT NULL REFERENCES import_batches(id) ON DELETE CASCADE,
-  row_number INTEGER NOT NULL,
-  raw_payload JSONB NOT NULL,
-  error_reason TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE project_import_links (
-  project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  import_batch_id BIGINT NOT NULL REFERENCES import_batches(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (project_id, import_batch_id)
-);
-
-CREATE TABLE project_change_logs (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  changed_by_user_id BIGINT NOT NULL REFERENCES users(id),
-  change_type TEXT NOT NULL CHECK (change_type IN ('manual_edit', 'status_change', 'import_override')),
-  field_name TEXT NOT NULL,
-  old_value JSONB,
-  new_value JSONB,
-  reason TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE email_dispatch_requests (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  requested_by_user_id BIGINT NOT NULL REFERENCES users(id),
-  project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  to_email CITEXT NOT NULL,
-  subject TEXT NOT NULL,
-  body TEXT NOT NULL,
-  payload JSONB,
-  status TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'sent', 'failed', 'dead_letter')),
-  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
-  next_attempt_at TIMESTAMPTZ,
-  last_error TEXT,
-  provider_message_id TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  sent_at TIMESTAMPTZ
-);
-
-CREATE TABLE ai_chat_sessions (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id),
-  title TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE ai_chat_messages (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  session_id BIGINT NOT NULL REFERENCES ai_chat_sessions(id) ON DELETE CASCADE,
-  role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
-  content TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE ai_sql_suggestions (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  session_id BIGINT NOT NULL REFERENCES ai_chat_sessions(id) ON DELETE CASCADE,
-  user_id BIGINT NOT NULL REFERENCES users(id),
-  question TEXT NOT NULL,
-  generated_sql TEXT NOT NULL,
-  validation_status TEXT NOT NULL CHECK (validation_status IN ('approved', 'rejected')),
-  validation_errors JSONB,
-  model_name TEXT,
-  feedback_score SMALLINT CHECK (feedback_score BETWEEN 1 AND 5),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_projects_public_listing
-  ON projects(is_active, status, published_at DESC);
-
+CREATE INDEX idx_projects_public_catalog
+  ON projects(is_visible, publication_status, published_at DESC);
 CREATE INDEX idx_projects_title_trgm
   ON projects USING gin (title gin_trgm_ops);
-
-CREATE INDEX idx_projects_responsible_user
-  ON projects(responsible_user_id);
-
-CREATE INDEX idx_projects_executing_unit
-  ON projects(executing_unit_id);
-
-CREATE INDEX idx_projects_type
-  ON projects(project_type_id);
-
-CREATE INDEX idx_org_units_parent
-  ON organizational_units(parent_unit_id);
-
-CREATE INDEX idx_courses_offering_unit
-  ON courses(offering_unit_id);
-
-CREATE INDEX idx_project_area_links_area
-  ON project_area_links(area_id);
-
-CREATE INDEX idx_project_course_links_course
-  ON project_course_links(course_id);
-
-CREATE INDEX idx_project_assignments_project
-  ON project_assignments(project_id, is_active, sort_order, created_at DESC);
-
-CREATE INDEX idx_project_assignment_courses_course
-  ON project_assignment_courses(course_id);
-
-CREATE INDEX idx_import_batches_ref
-  ON import_batches(reference_year, reference_term);
-
-CREATE INDEX idx_import_row_errors_batch_row
-  ON import_row_errors(import_batch_id, row_number);
-
-CREATE INDEX idx_project_import_links_batch
-  ON project_import_links(import_batch_id);
-
-CREATE INDEX idx_project_change_logs_project_created
-  ON project_change_logs(project_id, created_at DESC);
-
-CREATE INDEX idx_project_change_logs_user_created
-  ON project_change_logs(changed_by_user_id, created_at DESC);
-
-CREATE INDEX idx_email_dispatch_status_next
-  ON email_dispatch_requests(status, next_attempt_at);
-
-CREATE INDEX idx_email_dispatch_user_created
-  ON email_dispatch_requests(requested_by_user_id, created_at DESC);
-
-CREATE INDEX idx_ai_sessions_user_created
-  ON ai_chat_sessions(user_id, created_at DESC);
-
-CREATE INDEX idx_ai_messages_session_created
-  ON ai_chat_messages(session_id, created_at DESC);
-
-CREATE INDEX idx_ai_sql_suggestions_user_created
-  ON ai_sql_suggestions(user_id, created_at DESC);
+CREATE INDEX idx_projects_center ON projects(center_id);
+CREATE INDEX idx_projects_unit ON projects(executing_unit_id);
+CREATE INDEX idx_people_user ON people(user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX idx_participations_project ON project_participations(project_id);
+CREATE INDEX idx_participations_person ON project_participations(person_id);
+CREATE INDEX idx_participations_function ON project_participations(project_id, participant_function);
+CREATE INDEX idx_project_permissions_person
+  ON project_edit_permissions(person_id, project_id) WHERE is_active;
+CREATE INDEX idx_project_area_links_area ON project_area_links(area_id);
+CREATE INDEX idx_project_course_links_course ON project_course_links(course_id);
+CREATE INDEX idx_project_opportunities_project
+  ON project_opportunities(project_id, is_active, sort_order);
