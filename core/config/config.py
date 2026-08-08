@@ -100,7 +100,7 @@ class Settings(BaseSettings):
     PROJECT_COVER_PUBLIC_PATH: str = "assets/project-covers"
     PROJECT_COVER_MAX_BYTES: int = 5 * 1024 * 1024
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8-sig", extra="ignore")
 
 
 settings = Settings()
