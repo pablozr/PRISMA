@@ -22,9 +22,9 @@ async def get_all_centros(conn: asyncpg.Connection, limit: int, offset: int) -> 
     query = """
             SELECT id,
                    name,
-                   short_name
+                   NULL::TEXT AS short_name
             FROM organizational_units
-            WHERE type = 'centro'
+            WHERE unit_type = 'centro'
               AND is_active = TRUE
             ORDER BY name ASC
             LIMIT $1
@@ -44,11 +44,11 @@ async def get_all_unidades(
     query = """
             SELECT id,
                    name,
-                   short_name,
-                   type,
+                   NULL::TEXT AS short_name,
+                   unit_type AS type,
                    parent_unit_id
             FROM organizational_units
-            WHERE type IN ('instituto', 'escola')
+            WHERE unit_type = 'unidade'
               AND is_active = TRUE
               AND ($1::BIGINT[] IS NULL OR parent_unit_id = ANY($1::BIGINT[]))
             ORDER BY name ASC
@@ -69,17 +69,17 @@ async def get_all_cursos(
     query = """
             SELECT c.id,
                    c.name,
-                   c.level,
+                   NULL::TEXT AS level,
                    c.code,
                    c.offering_unit_id,
                    ou.name AS offering_unit_name,
-                   ou.short_name AS offering_unit_short_name,
-                   ou.type AS offering_unit_type
+                   NULL::TEXT AS offering_unit_short_name,
+                   ou.unit_type AS offering_unit_type
             FROM courses c
             JOIN organizational_units ou ON ou.id = c.offering_unit_id
             WHERE c.is_active = TRUE
               AND ou.is_active = TRUE
-              AND ou.type IN ('instituto', 'escola')
+              AND ou.unit_type = 'unidade'
               AND ($1::BIGINT[] IS NULL OR c.offering_unit_id = ANY($1::BIGINT[]))
             ORDER BY c.name ASC
             LIMIT $2
