@@ -24,9 +24,11 @@ def test_project_update_request_strips_valid_fields() -> None:
     assert payload.descricao_curta == "Resumo valido do projeto"
 
 
-def test_project_update_request_rejects_blank_after_strip() -> None:
-    with pytest.raises(ValidationError):
-        ProjectUpdateRequest(descricao="   ")
+def test_project_update_request_normalizes_blank_to_explicit_clear() -> None:
+    payload = ProjectUpdateRequest(descricao="   ")
+
+    assert payload.descricao is None
+    assert "descricao" in payload.model_fields_set
 
 
 def test_project_assignment_request_rejects_duplicate_course_ids() -> None:
@@ -49,12 +51,14 @@ def test_project_list_query_request_normalizes_ids_and_blank_query() -> None:
     payload = ProjectListQueryRequest(
         q="   ",
         area_ids=[3, 1, 3],
+        centro_ids=[6, 4, 6],
         unidade_ids=[5, 2],
         curso_ids=[9, 9, 1],
     )
 
     assert payload.q is None
     assert payload.area_ids == [1, 3]
+    assert payload.centro_ids == [4, 6]
     assert payload.unidade_ids == [2, 5]
     assert payload.curso_ids == [1, 9]
 

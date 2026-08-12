@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 from typing import List, Literal, Optional, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -24,45 +24,19 @@ class BaseProjectRequestModel(BaseModel):
 
 class ProjectData(TypedDict):
     id: int
+    sie_project_id: int
     process_code: Optional[str]
     title: str
-    short_description: Optional[str]
-    full_description: Optional[str]
-    contact_email: str
-    responsible_id: Optional[int]
-    responsible_name: Optional[str]
-    responsible_email: Optional[str]
-    responsible_type: Optional[str]
-    executing_unit_id: Optional[int]
-    executing_unit_name: Optional[str]
-    executing_unit_short_name: Optional[str]
-    executing_unit_type: Optional[str]
-    source_import_batch_id: Optional[int]
-    project_type_id: Optional[int]
-    project_type_name: Optional[str]
-    project_type_slug: Optional[str]
-    project_type_is_enabled: Optional[bool]
-    area_ids: Optional[list[int]]
-    course_ids: Optional[list[int]]
-    areas: Optional[list[dict]]
-    cursos: Optional[list[dict]]
-    imagens: Optional[list[dict]]
-    status: str
-    is_active: bool
-    starts_at: Optional[date]
-    ends_at: Optional[date]
-    created_at: datetime
-    updated_at: datetime
+    institutional: dict
+    editorial: dict
+    opportunities: list[dict]
     published_at: Optional[datetime]
-    deactivated_at: Optional[datetime]
-    cover_image_id: Optional[int]
-    cover_image_url: Optional[str]
-    cover_image_alt_text: Optional[str]
 
 
 class ProjectListQueryRequest(BaseProjectRequestModel):
     q: Optional[str] = Field(default=None, min_length=1, max_length=PROJECT_SEARCH_MAX_LENGTH)
     area_ids: Optional[list[int]] = None
+    centro_ids: Optional[list[int]] = None
     unidade_ids: Optional[list[int]] = None
     curso_ids: Optional[list[int]] = None
     ordenacao: Literal["titulo_asc", "titulo_desc", "data_desc"] = PROJECTS_DEFAULT_SORT
@@ -79,7 +53,7 @@ class ProjectListQueryRequest(BaseProjectRequestModel):
         normalized = value.strip()
         return normalized or None
 
-    @field_validator("area_ids", "unidade_ids", "curso_ids")
+    @field_validator("area_ids", "centro_ids", "unidade_ids", "curso_ids")
     @classmethod
     def normalize_positive_ids(cls, value: Optional[list[int]]) -> Optional[list[int]]:
         if value is None:
@@ -110,6 +84,7 @@ class ProjectManagedListQueryRequest(BaseProjectRequestModel):
 def build_project_list_query_request(
     q: Optional[str] = None,
     area_ids: Optional[List[int]] = None,
+    centro_ids: Optional[List[int]] = None,
     unidade_ids: Optional[List[int]] = None,
     curso_ids: Optional[List[int]] = None,
     ordenacao: str = PROJECTS_DEFAULT_SORT,
@@ -120,6 +95,7 @@ def build_project_list_query_request(
     return ProjectListQueryRequest(
         q=q,
         area_ids=area_ids,
+        centro_ids=centro_ids,
         unidade_ids=unidade_ids,
         curso_ids=curso_ids,
         ordenacao=ordenacao,
@@ -168,12 +144,10 @@ class ProjectDetailResponse(TypedDict):
 class ProjectUpdateRequest(BaseProjectRequestModel):
     descricao: Optional[str] = Field(
         default=None,
-        min_length=PROJECT_DESCRIPTION_MIN_LENGTH,
         max_length=PROJECT_DESCRIPTION_MAX_LENGTH,
     )
     descricao_curta: Optional[str] = Field(
         default=None,
-        min_length=PROJECT_DESCRIPTION_MIN_LENGTH,
         max_length=PROJECT_DESCRIPTION_MAX_LENGTH,
     )
 
@@ -185,8 +159,11 @@ class ProjectUpdateRequest(BaseProjectRequestModel):
 
         normalized = value.strip()
         if not normalized:
-            raise ValueError("O campo nao pode ser vazio.")
-
+            return None
+        if len(normalized) < PROJECT_DESCRIPTION_MIN_LENGTH:
+            raise ValueError(
+                f"O campo deve ter ao menos {PROJECT_DESCRIPTION_MIN_LENGTH} caracteres."
+            )
         return normalized
 
 

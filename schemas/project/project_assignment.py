@@ -44,6 +44,13 @@ class ProjectAssignmentData(TypedDict):
     curso_ids: list[int]
 
 
+class ProjectOpportunityData(TypedDict):
+    id: int
+    project_id: int
+    description: str
+    courses: list[dict]
+
+
 class ProjectAssignmentCreateResponse(TypedDict):
     status: bool
     message: str

@@ -38,6 +38,7 @@ def test_list_projects_uses_normalized_query(monkeypatch: pytest.MonkeyPatch) ->
             conn=conn,
             query=ProjectListQueryRequest(
                 area_ids=[3],
+                centro_ids=[4],
                 unidade_ids=[5],
                 curso_ids=[8],
                 page=1,
@@ -53,6 +54,7 @@ def test_list_projects_uses_normalized_query(monkeypatch: pytest.MonkeyPatch) ->
     repo_mock.assert_awaited_once_with(
         conn=conn,
         area_ids=[3],
+        centro_ids=[4],
         unidade_ids=[5],
         curso_ids=[8],
         ordenacao="data_desc",
@@ -61,30 +63,6 @@ def test_list_projects_uses_normalized_query(monkeypatch: pytest.MonkeyPatch) ->
         somente_habilitados=True,
         q="ciencia",
     )
-
-
-def test_list_project_assignments_returns_not_found_when_project_does_not_exist(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(project_service, "get_public_project_assignments", AsyncMock(return_value=[]))
-    monkeypatch.setattr(project_service, "exists_public_project", AsyncMock(return_value=False))
-
-    result = asyncio.run(project_service.list_project_assignments(object(), 10))
-
-    assert result["status"] is False
-    assert result["message"] == "Projeto nao encontrado."
-
-
-def test_list_project_assignments_returns_empty_list_when_project_exists(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(project_service, "get_public_project_assignments", AsyncMock(return_value=[]))
-    monkeypatch.setattr(project_service, "exists_public_project", AsyncMock(return_value=True))
-
-    result = asyncio.run(project_service.list_project_assignments(object(), 10))
-
-    assert result["status"] is True
-    assert result["data"] == {"atribuicoes": []}
 
 
 def test_update_my_project_requires_allowed_fields(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -131,11 +109,27 @@ def test_update_my_project_maps_fields_and_updates(monkeypatch: pytest.MonkeyPat
         project_id=22,
         user_id=11,
         user_role="professor",
-            allowed_fields={
-                "local_description": "Descricao valida com tamanho",
-                "local_short_description": "Resumo valido do projeto",
-            },
+        allowed_fields={
+            "local_description": "Descricao valida com tamanho",
+            "local_short_description": "Resumo valido do projeto",
+        },
     )
+
+
+def test_get_my_project_detail_includes_authorization_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    repository_mock = AsyncMock(return_value={"id": 22, "institutional": {}, "editorial": {}, "opportunities": []})
+    monkeypatch.setattr(project_service, "get_user_managed_project_by_id", repository_mock)
+    conn = object()
+
+    result = asyncio.run(
+        project_service.get_my_project_detail(
+            conn=conn, user={"id": 11, "role": "professor"}, project_id=22
+        )
+    )
+
+    assert result["status"] is True
+    assert result["data"]["projeto"]["access"] == {"can_edit": True, "role": "professor"}
+    repository_mock.assert_awaited_once_with(conn, 22, 11, "professor")
 
 
 def test_create_my_project_assignment_returns_error_when_course_linkage_is_invalid(

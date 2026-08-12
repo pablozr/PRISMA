@@ -21,10 +21,9 @@ from schemas.project.project_image import ProjectLogoUploadRequest
 from repositories.project.project_repository import (
     create_project_assignment,
     deactivate_project_assignment,
-    exists_public_project,
-    get_public_project_assignments,
     get_public_project_by_id,
     get_public_projects,
+    get_user_managed_project_by_id,
     get_user_managed_projects,
     update_managed_project_fields,
     upsert_project_cover_image,
@@ -67,6 +66,7 @@ async def list_projects(
         projects, total = await get_public_projects(
             conn=conn,
             area_ids=query.area_ids,
+            centro_ids=query.centro_ids,
             unidade_ids=query.unidade_ids,
             curso_ids=query.curso_ids,
             ordenacao=query.ordenacao,
@@ -119,36 +119,6 @@ async def get_project_detail(conn: asyncpg.Connection, project_id: int) -> dict:
         return service_response(False, "Erro ao recuperar projeto.")
 
 
-async def list_project_assignments(conn: asyncpg.Connection, project_id: int) -> dict:
-    try:
-        if project_id <= 0:
-            return service_response(False, "Projeto invalido.")
-
-        assignments = await get_public_project_assignments(conn, project_id)
-
-        if not assignments:
-            project_exists = await exists_public_project(conn, project_id)
-            if not project_exists:
-                return service_response(False, "Projeto nao encontrado.")
-
-            return service_response(
-                True,
-                "Projeto sem atribuicoes cadastradas.",
-                data={"atribuicoes": []},
-            )
-
-        encoded_assignments = jsonable_encoder(assignments)
-
-        return service_response(
-            True,
-            "Atribuicoes do projeto recuperadas com sucesso.",
-            data={"atribuicoes": encoded_assignments},
-        )
-    except Exception as e:
-        logger.exception(e)
-        return service_response(False, "Erro ao recuperar atribuicoes do projeto.")
-
-
 async def list_my_projects(
     conn: asyncpg.Connection,
     user: dict,
@@ -169,7 +139,10 @@ async def list_my_projects(
             page_size=query.page_size,
             q=query.q,
         )
-        encoded_projects = jsonable_encoder(projects)
+        encoded_projects = jsonable_encoder([
+            {**project, "access": {"can_edit": True, "role": user_role}}
+            for project in projects
+        ])
         pagination = build_pagination(query.page, query.page_size, total)
 
         if not encoded_projects:
@@ -193,6 +166,31 @@ async def list_my_projects(
     except Exception as e:
         logger.exception(e)
         return service_response(False, "Erro ao recuperar projetos do usuario.")
+
+
+async def get_my_project_detail(conn: asyncpg.Connection, user: dict, project_id: int) -> dict:
+    try:
+        if project_id <= 0:
+            return service_response(False, "Projeto invalido.")
+
+        auth_context = extract_authenticated_user_context(user)
+        if not auth_context:
+            return service_response(False, "Usuario autenticado invalido.")
+
+        user_id, user_role = auth_context
+        project = await get_user_managed_project_by_id(conn, project_id, user_id, user_role)
+        if not project:
+            return service_response(False, "Projeto nao encontrado ou sem permissao.")
+
+        project["access"] = {"can_edit": True, "role": user_role}
+        return service_response(
+            True,
+            "Detalhes do projeto gerenciado recuperados com sucesso.",
+            data={"projeto": jsonable_encoder(project)},
+        )
+    except Exception as e:
+        logger.exception(e)
+        return service_response(False, "Erro ao recuperar projeto gerenciado.")
 
 
 async def update_my_project(
@@ -221,7 +219,7 @@ async def update_my_project(
             "descricao_curta": "local_short_description",
         }
 
-        allowed_fields = {
+        allowed_fields: dict[str, str | None] = {
             db_column_map[field_name]: field_value
             for field_name, field_value in filtered.items()
         }
@@ -354,7 +352,12 @@ async def create_my_project_assignment(
         return service_response(
             True,
             "Atribuicao criada com sucesso.",
-            data={"atribuicao": jsonable_encoder(assignment)},
+            data={"atribuicao": {
+                "atribuicao_id": assignment["id"],
+                "projeto_id": assignment["project_id"],
+                "descricao": assignment["description"],
+                "cursos": jsonable_encoder(assignment["courses"]),
+            }},
         )
     except ValueError as e:
         logger.exception(e)
@@ -362,6 +365,25 @@ async def create_my_project_assignment(
     except Exception as e:
         logger.exception(e)
         return service_response(False, "Erro ao criar atribuicao do projeto.")
+
+
+async def create_my_project_opportunity(
+    conn: asyncpg.Connection, user: dict, project_id: int, descricao: str, curso_ids: list[int]
+) -> dict:
+    result = await create_my_project_assignment(conn, user, project_id, descricao, curso_ids)
+    if not result["status"]:
+        return result
+    assignment = result["data"]["atribuicao"]
+    return service_response(
+        True,
+        "Oportunidade criada com sucesso.",
+        data={"opportunity": {
+            "id": assignment["atribuicao_id"],
+            "project_id": assignment["projeto_id"],
+            "description": assignment["descricao"],
+            "courses": assignment["cursos"],
+        }},
+    )
 
 
 async def delete_my_project_assignment(
@@ -400,3 +422,14 @@ async def delete_my_project_assignment(
     except Exception as e:
         logger.exception(e)
         return service_response(False, "Erro ao remover atribuicao do projeto.")
+
+
+async def delete_my_project_opportunity(conn: asyncpg.Connection, user: dict, opportunity_id: int) -> dict:
+    result = await delete_my_project_assignment(conn, user, opportunity_id)
+    if not result["status"]:
+        return result
+    return service_response(
+        True,
+        "Oportunidade removida com sucesso.",
+        data={"opportunity": {"id": opportunity_id, "removed": True}},
+    )
