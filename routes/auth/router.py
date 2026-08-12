@@ -134,8 +134,12 @@ async def logout(
 
 
 @router.post("/refresh", dependencies=[*LOGIN_RATE_LIMIT_DEPS, Depends(validate_token_refresh)])
-async def refresh_token(request: Request, redis_client: redis.Redis = Depends(redis_cache.get_redis)):
-    response = await auth_refresh(redis_client, request.state.token)
+async def refresh_token(
+        request: Request,
+        conn: asyncpg.Connection = Depends(postgresql.get_db),
+        redis_client: redis.Redis = Depends(redis_cache.get_redis),
+):
+    response = await auth_refresh(conn, redis_client, request.state.token)
 
     if not response["status"]:
         return JSONResponse(status_code=400, content={"detail": response["message"]})

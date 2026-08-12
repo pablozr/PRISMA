@@ -108,8 +108,9 @@ services:
       - ./schema.sql:/schema.sql:ro
       - ./migration_sie_sync_safety.sql:/migration_sie_sync_safety.sql:ro
       - ./migration_sie_publish_projects.sql:/migration_sie_publish_projects.sql:ro
+      - ./migration_user_role_source.sql:/migration_user_role_source.sql:ro
     command: >
-      sh -c "if [ \"$(psql -h postgres -U $$DB_USER -d $$DB_NAME -Atqc \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='users';\")\" = \"0\" ]; then psql -h postgres -U $$DB_USER -d $$DB_NAME -v ON_ERROR_STOP=1 -f /schema.sql; else echo 'Schema already exists, skipping.'; fi; psql -h postgres -U $$DB_USER -d $$DB_NAME -v ON_ERROR_STOP=1 -f /migration_sie_sync_safety.sql; psql -h postgres -U $$DB_USER -d $$DB_NAME -v ON_ERROR_STOP=1 -f /migration_sie_publish_projects.sql"
+      sh -c "if [ \"$(psql -h postgres -U $$DB_USER -d $$DB_NAME -Atqc \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='users';\")\" = \"0\" ]; then psql -h postgres -U $$DB_USER -d $$DB_NAME -v ON_ERROR_STOP=1 -f /schema.sql; else echo 'Schema already exists, skipping.'; fi; psql -h postgres -U $$DB_USER -d $$DB_NAME -v ON_ERROR_STOP=1 -f /migration_sie_sync_safety.sql; psql -h postgres -U $$DB_USER -d $$DB_NAME -v ON_ERROR_STOP=1 -f /migration_sie_publish_projects.sql; psql -h postgres -U $$DB_USER -d $$DB_NAME -v ON_ERROR_STOP=1 -f /migration_user_role_source.sql"
 
   redis:
     image: redis:7-alpine

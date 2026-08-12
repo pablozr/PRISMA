@@ -154,15 +154,36 @@ async def upsert_project_bundle(
             participation["source_identity_key"], participation["full_name"], participation["institutional_email"],
             participation["profile"], sync_run_id,
         )
+    if participation["institutional_email"]:
+        await conn.execute(
+            """UPDATE people SET user_id = user_account.id, updated_at = NOW()
+               FROM users user_account
+               WHERE people.id = $1
+                 AND people.user_id IS NULL
+                 AND user_account.institutional_email = $2
+                 AND user_account.is_active = TRUE""",
+            person_id,
+            participation["institutional_email"],
+        )
     await conn.execute(
         """
         UPDATE users
-        SET role = people.profile, updated_at = NOW()
+        SET role = CASE
+              WHEN people.profile = 'professor' THEN 'professor'
+              WHEN people.profile = 'tecnico' AND users.role = 'aluno' THEN 'tecnico'
+              ELSE users.role
+            END,
+            role_source = CASE
+              WHEN people.profile IN ('professor', 'tecnico') THEN 'sie'
+              ELSE users.role_source
+            END,
+            updated_at = NOW()
         FROM people
         WHERE people.id = $1
           AND users.id = people.user_id
           AND users.role <> 'admin'
-          AND users.role <> people.profile;
+          AND users.role_source <> 'admin'
+          AND (people.profile = 'professor' OR (people.profile = 'tecnico' AND users.role = 'aluno'));
         """,
         person_id,
     )

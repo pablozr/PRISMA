@@ -32,8 +32,10 @@ async def create_user_from_person(conn: asyncpg.Connection, email: str, google_s
             WHERE institutional_email = $1 AND user_id IS NULL
             FOR UPDATE
         ), created_user AS (
-            INSERT INTO users (institutional_email, full_name, role, google_sub)
-            SELECT institutional_email, full_name, profile, $2
+            INSERT INTO users (institutional_email, full_name, role, role_source, google_sub)
+            SELECT institutional_email, full_name, profile,
+                   CASE WHEN profile IN ('professor', 'tecnico') THEN 'sie' ELSE 'google_default' END,
+                   $2
             FROM imported_person
             RETURNING id, institutional_email, full_name, role, google_sub, is_active, created_at, updated_at
         ), linked_person AS (

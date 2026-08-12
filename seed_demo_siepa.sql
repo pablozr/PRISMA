@@ -32,16 +32,17 @@ ON CONFLICT (slug) DO UPDATE SET
   updated_at = NOW();
 
 -- Usuários demo
-INSERT INTO users (institutional_email, full_name, role, password_hash, google_sub, is_active)
+INSERT INTO users (institutional_email, full_name, role, role_source, password_hash, google_sub, is_active)
 VALUES
-  ('apollo.zero@outlook.com', 'Apollo Zero', 'admin', '$2b$12$amZRmXpCN2rgBVqo0w4TJucEKFoCWiK7Xm6bgk.5QyawVkK0Pfgtu', NULL, TRUE),
-  ('pablo.farina@edu.unirio.br', 'Pablo Farina', 'tecnico', NULL, 'google-demo-tec-pablo-farina', TRUE),
-  ('ana.martins@demo.unirio.br', 'Ana Martins', 'professor', NULL, 'google-demo-prof-ana-martins', TRUE),
-  ('bruno.costa@demo.unirio.br', 'Bruno Costa', 'professor', NULL, 'google-demo-prof-bruno-costa', TRUE),
-  ('carla.souza@demo.unirio.br', 'Carla Souza', 'professor', NULL, 'google-demo-prof-carla-souza', TRUE)
+  ('apollo.zero@outlook.com', 'Apollo Zero', 'admin', 'admin', '$2b$12$amZRmXpCN2rgBVqo0w4TJucEKFoCWiK7Xm6bgk.5QyawVkK0Pfgtu', NULL, TRUE),
+  ('pablo.farina@edu.unirio.br', 'Pablo Farina', 'tecnico', 'admin', NULL, 'google-demo-tec-pablo-farina', TRUE),
+  ('ana.martins@demo.unirio.br', 'Ana Martins', 'professor', 'admin', NULL, 'google-demo-prof-ana-martins', TRUE),
+  ('bruno.costa@demo.unirio.br', 'Bruno Costa', 'professor', 'admin', NULL, 'google-demo-prof-bruno-costa', TRUE),
+  ('carla.souza@demo.unirio.br', 'Carla Souza', 'professor', 'admin', NULL, 'google-demo-prof-carla-souza', TRUE)
 ON CONFLICT (institutional_email) DO UPDATE SET
   full_name = EXCLUDED.full_name,
   role = EXCLUDED.role,
+  role_source = EXCLUDED.role_source,
   password_hash = EXCLUDED.password_hash,
   google_sub = EXCLUDED.google_sub,
   is_active = EXCLUDED.is_active,

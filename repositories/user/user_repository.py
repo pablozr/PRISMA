@@ -68,6 +68,21 @@ async def get_active_user_by_id(conn: asyncpg.Connection, user_id: int) -> dict 
     return {**row} if row else None
 
 
+async def create_google_default_user(conn: asyncpg.Connection, email: str, full_name: str, google_sub: str) -> dict | None:
+    row = await conn.fetchrow(
+        """INSERT INTO users (institutional_email, full_name, role, role_source, google_sub)
+           VALUES ($1, $2, 'aluno', 'google_default', $3)
+           ON CONFLICT (institutional_email) DO NOTHING
+           RETURNING id, institutional_email, full_name, role, role_source, google_sub, is_active""",
+        email,
+        full_name,
+        google_sub,
+    )
+    if row:
+        return {**row}
+    return await get_active_user_by_email(conn, email)
+
+
 async def update_user_password(conn: asyncpg.Connection, user_id: int, password_hash: str) -> dict | None:
     query = """
             UPDATE users
@@ -142,6 +157,7 @@ async def update_user_fields(
     if role is not None:
         params.append(role)
         updates.append(f"role = ${len(params)}")
+        updates.append("role_source = 'admin'")
 
     if is_active is not None:
         params.append(is_active)

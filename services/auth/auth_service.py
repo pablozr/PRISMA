@@ -22,7 +22,7 @@ from repositories.people.people_repository import (
     get_person_by_email,
     link_existing_user_to_person,
 )
-from repositories.user.user_repository import get_active_user_by_email
+from repositories.user.user_repository import create_google_default_user, get_active_user_by_email, get_active_user_by_id
 from repositories.user.user_repository import (
     get_active_user_for_password_reset,
     get_active_user_with_password_by_email,
@@ -109,8 +109,12 @@ async def _find_or_create_google_user(conn: asyncpg.Connection, google_user: dic
     if not google_sub:
         return None
 
-    # Tenta achar um professor registrado com o email do Google e criar o usuário com base nesse registro
-    return await _create_user_from_imported_person(conn, email, google_sub)
+    imported_user = await _create_user_from_imported_person(conn, email, google_sub)
+    if imported_user:
+        return imported_user
+
+    full_name = google_user.get("name") or email.split("@", 1)[0]
+    return await create_google_default_user(conn, email, full_name, google_sub)
 
 
 async def login(conn: asyncpg.Connection, redis_client: redis.Redis, login_data: UserLoginRequest) -> dict:
@@ -142,7 +146,7 @@ async def logout(redis_client: redis.Redis, session_id: str | None) -> dict:
         return service_response(status=False, message="Erro interno")
 
 
-async def refresh_token(redis_client: redis.Redis, refresh_token: str) -> dict:
+async def refresh_token(conn: asyncpg.Connection, redis_client: redis.Redis, refresh_token: str) -> dict:
     try:
         if not refresh_token:
             return service_response(status=False, message="Token de atualizacao ausente")
@@ -166,12 +170,11 @@ async def refresh_token(redis_client: redis.Redis, refresh_token: str) -> dict:
 
         await cache_service.delete_by_key(f"session:{payload['sessionId']}", redis_client)
 
-        token_user = {
-            "id": payload.get("userId"),
-            "email": payload.get("email"),
-            "role": payload.get("role"),
-        }
-        new_access_token, new_refresh_token = await _create_session_tokens(token_user, redis_client)
+        user = await get_active_user_by_id(conn, payload["userId"])
+        if not user:
+            raise ValueError("Usuario nao encontrado")
+
+        new_access_token, new_refresh_token = await _create_session_tokens(user, redis_client)
 
         return service_response(status=True, message="Tokens atualizados com sucesso",
                                 data={"accessToken": new_access_token, "refreshToken": new_refresh_token})

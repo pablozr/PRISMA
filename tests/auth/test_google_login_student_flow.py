@@ -23,17 +23,21 @@ def test_imported_person_creates_google_user(monkeypatch) -> None:
     create_user.assert_awaited_once_with(conn, "aluno@edu.unirio.br", "google-sub")
 
 
-def test_google_login_requires_imported_person(monkeypatch) -> None:
+def test_google_login_creates_student_when_person_is_not_imported(monkeypatch) -> None:
+    conn = object()
     monkeypatch.setattr(auth_service, "get_active_user_by_email", AsyncMock(return_value=None))
     monkeypatch.setattr(auth_service, "get_person_by_email", AsyncMock(return_value=None))
+    create_user = AsyncMock(return_value={"id": 21, "role": "aluno", "role_source": "google_default"})
+    monkeypatch.setattr(auth_service, "create_google_default_user", create_user)
 
     result = asyncio.run(
         auth_service._find_or_create_google_user(
-            object(), {"email": "novo@edu.unirio.br", "sub": "google-sub"}
+            conn, {"email": "novo@edu.unirio.br", "name": "Novo Aluno", "sub": "google-sub"}
         )
     )
 
-    assert result is None
+    assert result == {"id": 21, "role": "aluno", "role_source": "google_default"}
+    create_user.assert_awaited_once_with(conn, "novo@edu.unirio.br", "Novo Aluno", "google-sub")
 
 
 def test_existing_google_user_is_linked_to_imported_person(monkeypatch) -> None:
@@ -77,3 +81,23 @@ def test_google_callback_redirects_with_error_code(monkeypatch) -> None:
     response = asyncio.run(auth_router.google_oauth_callback(code="code", state="state", conn=object(), redis_client=object()))
 
     assert response.headers["location"].endswith("/signin?error=google_auth_failed")
+
+
+def test_refresh_uses_current_role_from_database(monkeypatch) -> None:
+    redis_client = object()
+    monkeypatch.setattr(
+        auth_service,
+        "decode_access_token",
+        lambda _token: {"type": "refresh", "userId": 10, "sessionId": "session", "jti": "refresh-jti"},
+    )
+    monkeypatch.setattr(auth_service.cache_service, "get_by_key", AsyncMock(return_value={"refreshJti": "refresh-jti"}))
+    monkeypatch.setattr(auth_service.cache_service, "delete_by_key", AsyncMock())
+    current_user = {"id": 10, "institutional_email": "prof@edu.unirio.br", "role": "professor"}
+    monkeypatch.setattr(auth_service, "get_active_user_by_id", AsyncMock(return_value=current_user))
+    create_tokens = AsyncMock(return_value=("access", "refresh"))
+    monkeypatch.setattr(auth_service, "_create_session_tokens", create_tokens)
+
+    result = asyncio.run(auth_service.refresh_token(object(), redis_client, "token"))
+
+    assert result["status"] is True
+    create_tokens.assert_awaited_once_with(current_user, redis_client)
