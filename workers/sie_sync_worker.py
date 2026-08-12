@@ -21,8 +21,8 @@ async def run_forever() -> None:
             while True:
                 try:
                     await synchronize_sie(postgresql.pool, client, settings.SIE_SYNC_PAGE_SIZE)
-                except Exception:
-                    logger.exception("SIE synchronization failed; retrying later")
+                except Exception as error:
+                    logger.error("SIE synchronization failed (%s); retrying later", type(error).__name__)
                     await asyncio.sleep(settings.SIE_SYNC_RETRY_SECONDS)
                 else:
                     await asyncio.sleep(settings.SIE_SYNC_INTERVAL_DAYS * 24 * 60 * 60)

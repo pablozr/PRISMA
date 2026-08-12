@@ -1,10 +1,14 @@
+import hashlib
+import re
+import unicodedata
+
 import asyncpg
 
 
-async def create_sync_run(conn: asyncpg.Connection, page_size: int) -> int:
+async def create_sync_run(conn: asyncpg.Connection, page_size: int, source: str) -> int:
     return await conn.fetchval(
-        "INSERT INTO sync_runs (status, page_size) VALUES ('running', $1) RETURNING id;",
-        page_size,
+        "INSERT INTO sync_runs (status, source, page_size, is_complete) VALUES ('running', $1, $2, FALSE) RETURNING id;",
+        source, page_size,
     )
 
 
@@ -17,32 +21,18 @@ async def finish_sync_run(
     projects_upserted: int,
     participants_upserted: int,
     error_summary: str | None = None,
+    is_complete: bool = False,
     ) -> None:
     await conn.execute(
         """
         UPDATE sync_runs
         SET status = $2, finished_at = NOW(), pages_processed = $3, rows_received = $4,
-            projects_upserted = $5, participants_upserted = $6, error_summary = $7
+            projects_upserted = $5, participants_upserted = $6, error_summary = $7,
+            is_complete = $8
         WHERE id = $1;
         """,
-        sync_run_id, status, pages_processed, rows_received, projects_upserted, participants_upserted, error_summary,
-    )
-
-
-async def deactivate_stale_permissions(conn: asyncpg.Connection, sync_run_id: int) -> None:
-    await conn.execute(
-        """
-        UPDATE project_edit_permissions
-        SET is_active = FALSE, updated_at = NOW()
-        WHERE is_active = TRUE
-          AND granted_by_sync_run_id IS DISTINCT FROM $1;
-        """,
-        sync_run_id,
-    )
-    await conn.execute(
-        """UPDATE project_participations SET is_active=FALSE, updated_at=NOW()
-           WHERE is_active=TRUE AND last_seen_sync_run_id IS DISTINCT FROM $1""",
-        sync_run_id,
+        sync_run_id, status, pages_processed, rows_received, projects_upserted, participants_upserted,
+        error_summary, is_complete,
     )
 
 
@@ -83,8 +73,10 @@ async def upsert_project_bundle(
         INSERT INTO projects (sie_project_id, process_code, title, source_summary, source_status, source_type,
             source_classification_id, source_thematic_area, source_research_chamber, has_external_funding,
             ethics_committee, sisgen_code, registered_on, starts_at, ends_at, source_updated_on,
-            center_id, executing_unit_id, first_seen_sync_run_id, last_seen_sync_run_id)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$19)
+            center_id, executing_unit_id, first_seen_sync_run_id, last_seen_sync_run_id,
+            publication_status, is_visible, published_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$19,
+            'published', TRUE, NOW())
         ON CONFLICT (sie_project_id) DO UPDATE SET
           process_code=EXCLUDED.process_code, title=EXCLUDED.title, source_summary=EXCLUDED.source_summary,
           source_status=EXCLUDED.source_status, source_type=EXCLUDED.source_type,
@@ -92,9 +84,11 @@ async def upsert_project_bundle(
           source_research_chamber=EXCLUDED.source_research_chamber, has_external_funding=EXCLUDED.has_external_funding,
           ethics_committee=EXCLUDED.ethics_committee, sisgen_code=EXCLUDED.sisgen_code,
           registered_on=EXCLUDED.registered_on, starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at,
-          center_id=EXCLUDED.center_id, executing_unit_id=EXCLUDED.executing_unit_id,
-          source_updated_on=EXCLUDED.source_updated_on, last_seen_sync_run_id=EXCLUDED.last_seen_sync_run_id,
-          updated_at=NOW()
+           center_id=EXCLUDED.center_id, executing_unit_id=EXCLUDED.executing_unit_id,
+           source_updated_on=EXCLUDED.source_updated_on, last_seen_sync_run_id=EXCLUDED.last_seen_sync_run_id,
+           publication_status='published', is_visible=TRUE,
+           published_at=COALESCE(projects.published_at, NOW()),
+           updated_at=NOW()
         RETURNING id;
         """,
         project["sie_project_id"], project["process_code"], project["title"], project["source_summary"],
@@ -108,29 +102,47 @@ async def upsert_project_bundle(
         "INSERT INTO project_keywords(project_id, position, keyword) VALUES($1,$2,$3)",
         [(project_id, position, keyword.strip()) for position, keyword in enumerate(project["keywords"], 1) if keyword and keyword.strip()],
     )
+    if project["source_thematic_area"]:
+        area_name = project["source_thematic_area"]
+        slug_base = re.sub(
+            r"[^a-z0-9]+",
+            "-",
+            unicodedata.normalize("NFKD", area_name).encode("ascii", "ignore").decode().lower(),
+        ).strip("-")
+        area_id = await conn.fetchval(
+            """INSERT INTO project_areas(name, slug) VALUES($1,$2)
+               ON CONFLICT(name) DO UPDATE SET name=EXCLUDED.name RETURNING id""",
+            area_name,
+            f"{slug_base or 'area'}-{hashlib.sha256(area_name.encode()).hexdigest()[:8]}",
+        )
+        await conn.execute(
+            "INSERT INTO project_area_links(project_id, area_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
+            project_id,
+            area_id,
+        )
     person_id = await conn.fetchval(
         """SELECT id FROM people
-           WHERE ($1::TEXT IS NOT NULL AND cpf=$1)
-              OR ($2::CITEXT IS NOT NULL AND institutional_email=$2)
-           LIMIT 1""",
-        participation["cpf"], participation["institutional_email"],
+           WHERE source_identity_key=$1
+               OR ($2::CITEXT IS NOT NULL AND institutional_email=$2)
+            LIMIT 1""",
+        participation["source_identity_key"], participation["institutional_email"],
     )
     if person_id:
         await conn.execute(
             """UPDATE people SET full_name=$2,
-                 cpf=COALESCE(cpf,$3), institutional_email=COALESCE(institutional_email,$4),
-                 profile=CASE WHEN $5='professor' THEN 'professor'
-                              WHEN profile='professor' THEN 'professor'
-                              WHEN $5='tecnico' THEN 'tecnico' ELSE profile END,
-                 last_seen_sync_run_id=$6, updated_at=NOW() WHERE id=$1""",
-            person_id, participation["full_name"], participation["cpf"], participation["institutional_email"], participation["profile"], sync_run_id,
+                  institutional_email=COALESCE(institutional_email,$3),
+                  profile=CASE WHEN $4='professor' THEN 'professor'
+                               WHEN profile='professor' THEN 'professor'
+                               WHEN $4='tecnico' THEN 'tecnico' ELSE profile END,
+                  last_seen_sync_run_id=$5, updated_at=NOW() WHERE id=$1""",
+            person_id, participation["full_name"], participation["institutional_email"], participation["profile"], sync_run_id,
         )
     else:
         person_id = await conn.fetchval(
         """
-        INSERT INTO people (source_identity_key, cpf, full_name, institutional_email, profile,
+        INSERT INTO people (source_identity_key, full_name, institutional_email, profile,
             first_seen_sync_run_id, last_seen_sync_run_id)
-        VALUES ($1,$2,$3,$4,$5,$6,$6)
+        VALUES ($1,$2,$3,$4,$5,$5)
         ON CONFLICT (source_identity_key) DO UPDATE SET full_name=EXCLUDED.full_name,
           institutional_email=COALESCE(EXCLUDED.institutional_email, people.institutional_email),
           profile=CASE WHEN EXCLUDED.profile='professor' THEN 'professor'
@@ -139,8 +151,8 @@ async def upsert_project_bundle(
           last_seen_sync_run_id=EXCLUDED.last_seen_sync_run_id, updated_at=NOW()
         RETURNING id;
         """,
-            participation["source_identity_key"], participation["cpf"], participation["full_name"],
-            participation["institutional_email"], participation["profile"], sync_run_id,
+            participation["source_identity_key"], participation["full_name"], participation["institutional_email"],
+            participation["profile"], sync_run_id,
         )
     await conn.execute(
         """
@@ -157,16 +169,15 @@ async def upsert_project_bundle(
     await conn.execute(
         """
         INSERT INTO project_participations (project_id, person_id, source_fingerprint, participant_function, scholarship_type,
-          participation_status, degree, project_email, standard_email, mobile_phone, landline_phone, weekly_hours,
+          participation_status, degree, weekly_hours,
           institutional_link, admission_method, job_description, work_schedule, departure_method, contract_status,
           possession_on, joined_on, left_on, participation_starts_on, participation_ends_on,
           first_seen_sync_run_id, last_seen_sync_run_id)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$24)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$20)
         ON CONFLICT (project_id, source_fingerprint) DO UPDATE SET
-          person_id=EXCLUDED.person_id, participant_function=EXCLUDED.participant_function,
-          scholarship_type=EXCLUDED.scholarship_type, participation_status=EXCLUDED.participation_status,
-          degree=EXCLUDED.degree, project_email=EXCLUDED.project_email, standard_email=EXCLUDED.standard_email,
-          mobile_phone=EXCLUDED.mobile_phone, landline_phone=EXCLUDED.landline_phone, weekly_hours=EXCLUDED.weekly_hours,
+           person_id=EXCLUDED.person_id, participant_function=EXCLUDED.participant_function,
+           scholarship_type=EXCLUDED.scholarship_type, participation_status=EXCLUDED.participation_status,
+           degree=EXCLUDED.degree, weekly_hours=EXCLUDED.weekly_hours,
           institutional_link=EXCLUDED.institutional_link, admission_method=EXCLUDED.admission_method,
           job_description=EXCLUDED.job_description, work_schedule=EXCLUDED.work_schedule,
           departure_method=EXCLUDED.departure_method, contract_status=EXCLUDED.contract_status,
@@ -175,14 +186,15 @@ async def upsert_project_bundle(
           last_seen_sync_run_id=EXCLUDED.last_seen_sync_run_id, is_active=TRUE, updated_at=NOW();
         """,
         project_id, person_id, participation["participation_fingerprint"], participation["participant_function"], participation["scholarship_type"],
-        participation["participation_status"], participation["degree"], participation["project_email"],
-        participation["standard_email"], participation["mobile_phone"], participation["landline_phone"],
-        participation["weekly_hours"], participation["institutional_link"], participation["admission_method"],
+        participation["participation_status"], participation["degree"], participation["weekly_hours"],
+        participation["institutional_link"], participation["admission_method"],
         participation["job_description"], participation["work_schedule"], participation["departure_method"],
         participation["contract_status"], participation["possession_on"], participation["joined_on"],
         participation["left_on"], participation["participation_starts_on"], participation["participation_ends_on"], sync_run_id,
     )
-    if participation["permission_source"]:
+    # A person without an institutional email cannot be linked by the Google
+    # login flow, so an SIE-only identity must never create usable access.
+    if participation["institutional_email"] and participation["permission_source"]:
         await conn.execute(
             """INSERT INTO project_edit_permissions (project_id, person_id, permission_source, granted_by_sync_run_id)
                VALUES ($1,$2,$3,$4) ON CONFLICT (project_id, person_id, permission_source)

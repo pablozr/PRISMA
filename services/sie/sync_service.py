@@ -1,7 +1,7 @@
 import asyncpg
 
 from integrations.sie_client import SIEClient
-from repositories.sie.sie_repository import create_sync_run, deactivate_stale_permissions, finish_sync_run, upsert_project_bundle
+from repositories.sie.sie_repository import create_sync_run, finish_sync_run, upsert_project_bundle
 from services.sie.normalizer import normalize_participation, normalize_project
 
 
@@ -11,7 +11,7 @@ async def synchronize_sie(
     page_size: int,
 ) -> dict[str, int]:
     async with pool.acquire() as conn:
-        sync_run_id = await create_sync_run(conn, page_size)
+        sync_run_id = await create_sync_run(conn, page_size, "sie_api")
 
     pages = rows = participants = invalid_rows = 0
     project_ids: set[int] = set()
@@ -43,13 +43,21 @@ async def synchronize_sie(
             start += page_size
     except Exception as error:
         async with pool.acquire() as conn:
-            await finish_sync_run(conn, sync_run_id, "failed", pages, rows, len(project_ids), participants, str(error))
+            await finish_sync_run(
+                conn, sync_run_id, "failed", pages, rows, len(project_ids), participants,
+                f"SIE synchronization failed ({type(error).__name__})",
+            )
         raise
 
     async with pool.acquire() as conn:
         status = "partial" if invalid_rows else "success"
-        if status == "success":
-            await deactivate_stale_permissions(conn, sync_run_id)
         error_summary = f"{invalid_rows} invalid SIE row(s) skipped" if invalid_rows else None
         await finish_sync_run(conn, sync_run_id, status, pages, rows, len(project_ids), participants, error_summary)
-    return {"sync_run_id": sync_run_id, "pages": pages, "rows": rows, "projects": len(project_ids), "participants": participants}
+    return {
+        "sync_run_id": sync_run_id,
+        "pages": pages,
+        "rows": rows,
+        "projects": len(project_ids),
+        "participants": participants,
+        "is_complete": False,
+    }

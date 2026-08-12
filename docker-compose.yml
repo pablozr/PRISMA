@@ -8,16 +8,16 @@ services:
     environment:
       ENVIRONMENT: ${ENVIRONMENT}
       API_PORT: ${API_PORT}
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_HOST: postgres
+      DB_PORT: 5432
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
-      RABBITMQ_HOST: ${RABBITMQ_HOST}
-      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       SECRET_KEY: ${SECRET_KEY}
@@ -54,8 +54,8 @@ services:
     command: ["python", "-m", "workers.sie_sync_worker"]
     restart: unless-stopped
     environment:
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_HOST: postgres
+      DB_PORT: 5432
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
@@ -106,8 +106,10 @@ services:
       PGPASSWORD: ${DB_PASSWORD}
     volumes:
       - ./schema.sql:/schema.sql:ro
+      - ./migration_sie_sync_safety.sql:/migration_sie_sync_safety.sql:ro
+      - ./migration_sie_publish_projects.sql:/migration_sie_publish_projects.sql:ro
     command: >
-      sh -c "if [ \"$(psql -h postgres -U $$DB_USER -d $$DB_NAME -Atqc \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='users';\")\" = \"0\" ]; then psql -h postgres -U $$DB_USER -d $$DB_NAME -v ON_ERROR_STOP=1 -f /schema.sql; else echo 'Schema already exists, skipping.'; fi"
+      sh -c "if [ \"$(psql -h postgres -U $$DB_USER -d $$DB_NAME -Atqc \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='users';\")\" = \"0\" ]; then psql -h postgres -U $$DB_USER -d $$DB_NAME -v ON_ERROR_STOP=1 -f /schema.sql; else echo 'Schema already exists, skipping.'; fi; psql -h postgres -U $$DB_USER -d $$DB_NAME -v ON_ERROR_STOP=1 -f /migration_sie_sync_safety.sql; psql -h postgres -U $$DB_USER -d $$DB_NAME -v ON_ERROR_STOP=1 -f /migration_sie_publish_projects.sql"
 
   redis:
     image: redis:7-alpine

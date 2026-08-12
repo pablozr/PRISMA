@@ -37,15 +37,15 @@ def test_get_unidades_uses_normalized_query(monkeypatch: pytest.MonkeyPatch) -> 
     )
 
 
-def test_get_cursos_returns_failure_when_repository_is_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_cursos_returns_empty_list_when_repository_is_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     conn = object()
     monkeypatch.setattr(catalogue_service, "get_all_cursos", AsyncMock(return_value=[]))
 
     result = asyncio.run(catalogue_service.get_cursos(conn, query=CatalogueCoursesQueryRequest()))
 
-    assert result["status"] is False
+    assert result["status"] is True
     assert result["data"] == []
-    assert "Sem cursos" in result["message"]
+    assert "Cursos recuperados" in result["message"]
 
 
 def test_get_centros_returns_error_response_on_exception(monkeypatch: pytest.MonkeyPatch) -> None:

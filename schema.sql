@@ -20,7 +20,9 @@ CREATE TABLE users (
 -- Cada execução representa a atualização quinzenal da base local.
 CREATE TABLE sync_runs (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  source TEXT NOT NULL DEFAULT 'sie_api',
   status TEXT NOT NULL CHECK (status IN ('running', 'success', 'partial', 'failed')),
+  is_complete BOOLEAN NOT NULL DEFAULT FALSE,
   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   finished_at TIMESTAMPTZ,
   page_size INTEGER NOT NULL CHECK (page_size > 0),
@@ -49,7 +51,6 @@ CREATE TABLE organizational_units (
 CREATE TABLE people (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   source_identity_key TEXT NOT NULL UNIQUE,
-  cpf TEXT UNIQUE,
   full_name TEXT NOT NULL,
   institutional_email CITEXT UNIQUE,
   profile TEXT NOT NULL CHECK (profile IN ('professor', 'tecnico', 'aluno')),
@@ -115,10 +116,6 @@ CREATE TABLE project_participations (
   scholarship_type TEXT,
   participation_status TEXT,
   degree TEXT,
-  project_email CITEXT,
-  standard_email CITEXT,
-  mobile_phone TEXT,
-  landline_phone TEXT,
   weekly_hours INTEGER CHECK (weekly_hours >= 0),
   institutional_link TEXT,
   admission_method TEXT,

@@ -17,9 +17,6 @@ async def get_areas_tematicas(conn: asyncpg.Connection, query: CataloguePaginati
     try:
         areas = await get_all_areas_tematicas(conn, limit=query.limit, offset=query.offset)
 
-        if not areas:
-            return service_response(False, "Sem áreas temáticas disponíveis", True, [])
-
         return service_response(True, "Áreas temáticas recuperadas com sucesso", True, areas)
     except Exception as e:
         logger.error(e)
@@ -29,9 +26,6 @@ async def get_areas_tematicas(conn: asyncpg.Connection, query: CataloguePaginati
 async def get_centros(conn: asyncpg.Connection, query: CataloguePaginationQueryRequest) -> dict:
     try:
         centros = await get_all_centros(conn, limit=query.limit, offset=query.offset)
-
-        if not centros:
-            return service_response(False, "Sem centros disponíveis", True, [])
 
         return service_response(True, "Centros recuperados com sucesso", True, centros)
     except Exception as e:
@@ -51,10 +45,7 @@ async def get_unidades(
             offset=query.offset,
         )
 
-        if not unidades:
-            return service_response(False, "Sem institutos/escolas disponíveis", True, [])
-
-        return service_response(True, "Institutos/escolas recuperados com sucesso", True, unidades)
+        return service_response(True, "Unidades recuperadas com sucesso", True, unidades)
     except Exception as e:
         logger.error(e)
         return service_response(False, "Erro ao recuperar institutos/escolas", True, [])
@@ -71,9 +62,6 @@ async def get_cursos(
             limit=query.limit,
             offset=query.offset,
         )
-
-        if not cursos:
-            return service_response(False, "Sem cursos disponíveis", True, [])
 
         return service_response(True, "Cursos recuperados com sucesso", True, cursos)
     except Exception as e:
