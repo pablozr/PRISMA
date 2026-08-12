@@ -55,6 +55,7 @@ class GoogleOAuthClient:
             raw_id_token,
             google_requests.Request(),
             settings.GOOGLE_CLIENT_ID,
+            clock_skew_in_seconds=settings.GOOGLE_OAUTH_CLOCK_SKEW_SECONDS,
         )
 
         if payload.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):

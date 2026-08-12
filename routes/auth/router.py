@@ -1,3 +1,5 @@
+import logging
+
 import asyncpg
 import redis
 from fastapi import APIRouter, Request, Depends
@@ -28,6 +30,12 @@ from services.auth.auth_service import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+def _frontend_auth_error_url(error: str) -> str:
+    separator = "&" if "?" in settings.FRONTEND_AUTH_ERROR_URL else "?"
+    return f"{settings.FRONTEND_AUTH_ERROR_URL}{separator}error={error}"
 
 
 @router.post("/login", dependencies=LOGIN_RATE_LIMIT_DEPS)
@@ -54,7 +62,7 @@ async def login(
 async def google_oauth_start(redis_client: redis.Redis = Depends(redis_cache.get_redis)):
     response = await auth_google_oauth_start(redis_client)
     if not response["status"]:
-        return RedirectResponse(settings.FRONTEND_AUTH_ERROR_URL, status_code=302)
+        return RedirectResponse(_frontend_auth_error_url("google_auth_failed"), status_code=302)
 
     return RedirectResponse(response["data"]["authorizationUrl"], status_code=302)
 
@@ -67,18 +75,20 @@ async def google_oauth_callback(
         redis_client: redis.Redis = Depends(redis_cache.get_redis),
 ):
     if not code or not state:
-        return RedirectResponse(settings.FRONTEND_AUTH_ERROR_URL, status_code=302)
+        return RedirectResponse(_frontend_auth_error_url("google_auth_cancelled"), status_code=302)
 
     response = await auth_google_oauth_callback(conn, redis_client, code, state)
     if not response["status"]:
-        return RedirectResponse(settings.FRONTEND_AUTH_ERROR_URL, status_code=302)
+        logger.warning("Google OAuth callback failed: %s", response["message"])
+        return RedirectResponse(_frontend_auth_error_url("google_auth_failed"), status_code=302)
 
     access_token = response["data"].get("accessToken")
     refresh_token = response["data"].get("refreshToken")
     session_id = response["data"].get("sessionId")
 
     if not access_token or not refresh_token:
-        return RedirectResponse(settings.FRONTEND_AUTH_ERROR_URL, status_code=302)
+        logger.error("Google OAuth callback completed without session tokens")
+        return RedirectResponse(_frontend_auth_error_url("google_auth_failed"), status_code=302)
 
     redirect_response = RedirectResponse(settings.FRONTEND_AUTH_SUCCESS_URL, status_code=302)
     set_auth_cookies(redirect_response, access_token, refresh_token, session_id)

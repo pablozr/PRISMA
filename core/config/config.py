@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     FRONTEND_AUTH_ERROR_URL: str = "http://localhost:4200/signin"
     ALLOWED_GOOGLE_DOMAINS: str = "edu.unirio.br"
     GOOGLE_OAUTH_STATE_TTL_SECONDS: int = 300
+    GOOGLE_OAUTH_CLOCK_SKEW_SECONDS: int = 10
 
     HTTP_CLIENT_TIMEOUT_SECONDS: float = 10.0
     HTTP_CLIENT_MAX_CONNECTIONS: int = 100
