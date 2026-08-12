@@ -41,15 +41,15 @@ class AdminProjectsListQuery(AdminBaseSchema):
 
 
 class AdminProjectUpdateRequest(AdminBaseSchema):
-    status: Optional[Literal["draft", "published", "archived"]] = None
-    is_active: Optional[bool] = None
+    publication_status: Optional[Literal["draft", "published", "archived"]] = None
+    is_visible: Optional[bool] = None
 
 
-class AdminImportsListQuery(AdminBaseSchema):
+class AdminSyncRunsListQuery(AdminBaseSchema):
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
 
 
-class AdminImportErrorsListQuery(AdminBaseSchema):
+class AdminSyncRunErrorsListQuery(AdminBaseSchema):
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)

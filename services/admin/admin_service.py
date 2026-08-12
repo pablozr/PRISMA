@@ -2,18 +2,18 @@ from functions.utils.utils import build_pagination, get_pagination_offset, servi
 
 from repositories.admin.admin_repository import (
     count_admin_projects,
-    count_import_batches,
-    count_import_errors_by_batch,
+    count_sync_run_failures,
+    count_sync_runs,
     get_dashboard_metrics_row,
     list_admin_projects_paginated,
-    list_import_batches_paginated,
-    list_import_errors_by_batch_paginated,
+    list_sync_run_failures_paginated,
+    list_sync_runs_paginated,
     update_admin_project_fields,
 )
 from repositories.user.user_repository import count_users, list_users_paginated, update_user_fields
 from schemas.admin import (
-    AdminImportErrorsListQuery,
-    AdminImportsListQuery,
+    AdminSyncRunErrorsListQuery,
+    AdminSyncRunsListQuery,
     AdminProjectUpdateRequest,
     AdminProjectsListQuery,
     AdminUserUpdateRequest,
@@ -82,10 +82,12 @@ async def list_projects(conn, query: AdminProjectsListQuery) -> dict:
 
 
 async def update_project(conn, project_id: int, payload: AdminProjectUpdateRequest) -> dict:
-    if payload.status is None and payload.is_active is None:
+    if payload.publication_status is None and payload.is_visible is None:
         return service_response(status=False, message="Nenhum campo valido informado para atualizacao.")
 
-    row = await update_admin_project_fields(conn, project_id, payload.status, payload.is_active)
+    row = await update_admin_project_fields(
+        conn, project_id, payload.publication_status, payload.is_visible
+    )
 
     if not row:
         return service_response(status=False, message="Projeto nao encontrado.")
@@ -93,33 +95,33 @@ async def update_project(conn, project_id: int, payload: AdminProjectUpdateReque
     return service_response(status=True, message="Projeto atualizado com sucesso.", data={"project": {**row}})
 
 
-async def list_import_batches(conn, query: AdminImportsListQuery) -> dict:
-    total = await count_import_batches(conn)
+async def list_sync_runs(conn, query: AdminSyncRunsListQuery) -> dict:
+    total = await count_sync_runs(conn)
 
     offset = get_pagination_offset(query.page, query.page_size)
-    rows = await list_import_batches_paginated(conn, query.page_size, offset)
+    rows = await list_sync_runs_paginated(conn, query.page_size, offset)
 
     return service_response(
         status=True,
-        message="Historico de importacoes carregado com sucesso.",
+        message="Execucoes de sincronizacao carregadas com sucesso.",
         data={
-            "batches": rows,
+            "sync_runs": rows,
             "pagination": build_pagination(query.page, query.page_size, total),
         },
     )
 
 
-async def list_import_errors(conn, batch_id: int, query: AdminImportErrorsListQuery) -> dict:
-    total = await count_import_errors_by_batch(conn, batch_id)
+async def list_sync_run_failures(conn, sync_run_id: int, query: AdminSyncRunErrorsListQuery) -> dict:
+    total = await count_sync_run_failures(conn, sync_run_id)
 
     offset = get_pagination_offset(query.page, query.page_size)
-    rows = await list_import_errors_by_batch_paginated(conn, batch_id, query.page_size, offset)
+    rows = await list_sync_run_failures_paginated(conn, sync_run_id, query.page_size, offset)
 
     return service_response(
         status=True,
-        message="Erros de importacao carregados com sucesso.",
+        message="Falhas da sincronizacao carregadas com sucesso.",
         data={
-            "errors": rows,
+            "failures": rows,
             "pagination": build_pagination(query.page, query.page_size, total),
         },
     )

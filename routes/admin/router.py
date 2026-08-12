@@ -4,8 +4,8 @@ from core.postgresql.postgresql import postgresql
 from core.security import security
 from functions.utils.utils import default_response
 from schemas.admin import (
-    AdminImportErrorsListQuery,
-    AdminImportsListQuery,
+    AdminSyncRunErrorsListQuery,
+    AdminSyncRunsListQuery,
     AdminProjectUpdateRequest,
     AdminProjectsListQuery,
     AdminUserUpdateRequest,
@@ -68,24 +68,24 @@ async def patch_admin_project(
     return await default_response(admin_service.update_project, [conn, project_id, payload])
 
 
-@router.get("/imports")
-async def get_admin_imports(
+@router.get("/sync-runs")
+async def get_admin_sync_runs(
     page: int = 1,
     page_size: int = 20,
     _=Depends(security.require_admin_rank()),
     conn=Depends(postgresql.get_db),
 ):
-    query = AdminImportsListQuery(page=page, page_size=page_size)
-    return await default_response(admin_service.list_import_batches, [conn, query])
+    query = AdminSyncRunsListQuery(page=page, page_size=page_size)
+    return await default_response(admin_service.list_sync_runs, [conn, query])
 
 
-@router.get("/imports/{batch_id}/errors")
-async def get_admin_import_errors(
-    batch_id: int,
+@router.get("/sync-runs/{sync_run_id}/failures")
+async def get_admin_sync_run_failures(
+    sync_run_id: int,
     page: int = 1,
     page_size: int = 20,
     _=Depends(security.require_admin_rank()),
     conn=Depends(postgresql.get_db),
 ):
-    query = AdminImportErrorsListQuery(page=page, page_size=page_size)
-    return await default_response(admin_service.list_import_errors, [conn, batch_id, query])
+    query = AdminSyncRunErrorsListQuery(page=page, page_size=page_size)
+    return await default_response(admin_service.list_sync_run_failures, [conn, sync_run_id, query])
