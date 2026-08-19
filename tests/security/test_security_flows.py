@@ -36,6 +36,10 @@ def test_is_allowed_domain_accepts_allowed_email_and_hd() -> None:
     assert security.is_allowed_domain("aluno@edu.unirio.br", "edu.unirio.br") is True
 
 
+def test_is_allowed_domain_accepts_unirio_email_and_hd() -> None:
+    assert security.is_allowed_domain("aluno@unirio.br", "unirio.br") is True
+
+
 def test_is_allowed_domain_rejects_when_hd_differs() -> None:
     assert security.is_allowed_domain("aluno@edu.unirio.br", "externo.com") is False
 
