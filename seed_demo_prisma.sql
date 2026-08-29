@@ -1,5 +1,5 @@
 -- =========================================================
--- SIEPA - Seed de demonstração para ambiente de visualização
+-- PRISMA - Seed de demonstração para ambiente de visualização
 -- ---------------------------------------------------------
 -- Objetivo: popular dados fictícios para testar listagem,
 -- detalhes, filtros, imagens, cursos, áreas e atribuições.
@@ -11,8 +11,8 @@
 --
 -- Dados fáceis de localizar:
 -- - Emails: @demo.unirio.br
--- - Process codes: DEMO-SIEPA-...
--- - Import hash: demo-siepa-seed-v1
+-- - Process codes: DEMO-PRISMA-...
+-- - Import hash: demo-prisma-seed-v1
 --
 -- Atenção:
 -- - O password_hash do admin é apenas placeholder. Troque pelo hash real
@@ -115,7 +115,7 @@ BEGIN
 
   SELECT id INTO v_batch_id
   FROM import_batches
-  WHERE source_hash = 'demo-siepa-seed-v1'
+  WHERE source_hash = 'demo-prisma-seed-v1'
   LIMIT 1;
 
   IF v_batch_id IS NULL THEN
@@ -135,8 +135,8 @@ BEGIN
       2026,
       1,
       v_admin_id,
-      'demo_siepa_seed.csv',
-      'demo-siepa-seed-v1',
+      'demo_prisma_seed.csv',
+      'demo-prisma-seed-v1',
       'success',
       6,
       6,
@@ -283,7 +283,7 @@ BEGIN
   SELECT id INTO v_area_meio_ambiente FROM project_areas WHERE slug = 'demo-meio-ambiente';
 
   -- Projetos demo
-  SELECT id INTO v_project_1 FROM projects WHERE process_code = 'DEMO-SIEPA-EXT-001' LIMIT 1;
+  SELECT id INTO v_project_1 FROM projects WHERE process_code = 'DEMO-PRISMA-EXT-001' LIMIT 1;
   IF v_project_1 IS NULL THEN
     INSERT INTO projects (
       process_code,
@@ -302,7 +302,7 @@ BEGIN
       published_at
     )
     VALUES (
-      'DEMO-SIEPA-EXT-001',
+      'DEMO-PRISMA-EXT-001',
       'DEMO - Laboratorio Aberto de Tecnologia para a Comunidade',
       'Oficinas introdutorias de tecnologia, cidadania digital e desenvolvimento web para a comunidade externa.',
       'Projeto de extensao voltado para aproximar estudantes, professores e comunidade externa por meio de oficinas praticas sobre tecnologia, cidadania digital, programacao introdutoria e boas praticas de uso da internet.',
@@ -337,7 +337,7 @@ BEGIN
     WHERE id = v_project_1;
   END IF;
 
-  SELECT id INTO v_project_2 FROM projects WHERE process_code = 'DEMO-SIEPA-IC-001' LIMIT 1;
+  SELECT id INTO v_project_2 FROM projects WHERE process_code = 'DEMO-PRISMA-IC-001' LIMIT 1;
   IF v_project_2 IS NULL THEN
     INSERT INTO projects (
       process_code, title, short_description, full_description, contact_email,
@@ -345,7 +345,7 @@ BEGIN
       status, is_active, starts_at, ends_at, published_at
     )
     VALUES (
-      'DEMO-SIEPA-IC-001',
+      'DEMO-PRISMA-IC-001',
       'DEMO - Modelos Inteligentes para Catalogos Academicos',
       'Pesquisa sobre organizacao, busca e recomendacao de projetos academicos em portais institucionais.',
       'Projeto de iniciacao cientifica que investiga formas de estruturar catalogos academicos, melhorar busca textual e apoiar recomendacoes de projetos conforme areas, cursos e unidades institucionais.',
@@ -380,7 +380,7 @@ BEGIN
     WHERE id = v_project_2;
   END IF;
 
-  SELECT id INTO v_project_3 FROM projects WHERE process_code = 'DEMO-SIEPA-EXT-002' LIMIT 1;
+  SELECT id INTO v_project_3 FROM projects WHERE process_code = 'DEMO-PRISMA-EXT-002' LIMIT 1;
   IF v_project_3 IS NULL THEN
     INSERT INTO projects (
       process_code, title, short_description, full_description, contact_email,
@@ -388,7 +388,7 @@ BEGIN
       status, is_active, starts_at, ends_at, published_at
     )
     VALUES (
-      'DEMO-SIEPA-EXT-002',
+      'DEMO-PRISMA-EXT-002',
       'DEMO - Educacao Ambiental em Escolas Publicas',
       'Acoes educativas sobre sustentabilidade, biodiversidade e preservacao ambiental em escolas parceiras.',
       'Projeto de extensao que desenvolve atividades com estudantes da educacao basica, articulando ciencias biologicas, meio ambiente e praticas pedagogicas para promover consciencia ambiental.',
@@ -423,7 +423,7 @@ BEGIN
     WHERE id = v_project_3;
   END IF;
 
-  SELECT id INTO v_project_4 FROM projects WHERE process_code = 'DEMO-SIEPA-EXT-003' LIMIT 1;
+  SELECT id INTO v_project_4 FROM projects WHERE process_code = 'DEMO-PRISMA-EXT-003' LIMIT 1;
   IF v_project_4 IS NULL THEN
     INSERT INTO projects (
       process_code, title, short_description, full_description, contact_email,
@@ -431,7 +431,7 @@ BEGIN
       status, is_active, starts_at, ends_at, published_at
     )
     VALUES (
-      'DEMO-SIEPA-EXT-003',
+      'DEMO-PRISMA-EXT-003',
       'DEMO - Musica, Memoria e Territorio',
       'Atividades culturais e oficinas musicais para valorizacao da memoria local e producao artistica comunitaria.',
       'Projeto de extensao que integra estudantes e comunidade por meio de oficinas, rodas de conversa, apresentacoes e registros culturais ligados a musica, memoria e territorio.',
@@ -466,7 +466,7 @@ BEGIN
     WHERE id = v_project_4;
   END IF;
 
-  SELECT id INTO v_project_5 FROM projects WHERE process_code = 'DEMO-SIEPA-IC-002' LIMIT 1;
+  SELECT id INTO v_project_5 FROM projects WHERE process_code = 'DEMO-PRISMA-IC-002' LIMIT 1;
   IF v_project_5 IS NULL THEN
     INSERT INTO projects (
       process_code, title, short_description, full_description, contact_email,
@@ -474,7 +474,7 @@ BEGIN
       status, is_active, starts_at, ends_at, published_at
     )
     VALUES (
-      'DEMO-SIEPA-IC-002',
+      'DEMO-PRISMA-IC-002',
       'DEMO - Indicadores de Permanencia Estudantil',
       'Estudo exploratorio sobre dados academicos, permanencia estudantil e visualizacao de indicadores.',
       'Projeto de iniciacao cientifica voltado para analise de dados institucionais, producao de indicadores e construcao de visualizacoes que apoiem a compreensao de trajetorias academicas.',
@@ -509,7 +509,7 @@ BEGIN
     WHERE id = v_project_5;
   END IF;
 
-  SELECT id INTO v_project_6 FROM projects WHERE process_code = 'DEMO-SIEPA-DRAFT-001' LIMIT 1;
+  SELECT id INTO v_project_6 FROM projects WHERE process_code = 'DEMO-PRISMA-DRAFT-001' LIMIT 1;
   IF v_project_6 IS NULL THEN
     INSERT INTO projects (
       process_code, title, short_description, full_description, contact_email,
@@ -517,7 +517,7 @@ BEGIN
       status, is_active, starts_at, ends_at, published_at
     )
     VALUES (
-      'DEMO-SIEPA-DRAFT-001',
+      'DEMO-PRISMA-DRAFT-001',
       'DEMO - Projeto Rascunho para Teste de Area Administrativa',
       'Este projeto fica em draft para testar se a listagem publica ignora rascunhos.',
       'Registro demonstrativo usado para validar regras de visibilidade. Nao deve aparecer na listagem publica de projetos publicados.',
@@ -715,6 +715,6 @@ END $$;
 COMMIT;
 
 -- Consultas rápidas para validar:
--- SELECT id, process_code, title, status, is_active FROM projects WHERE process_code LIKE 'DEMO-SIEPA-%' ORDER BY id;
--- SELECT p.process_code, p.title, pa.name AS area FROM projects p JOIN project_area_links pal ON pal.project_id = p.id JOIN project_areas pa ON pa.id = pal.area_id WHERE p.process_code LIKE 'DEMO-SIEPA-%' ORDER BY p.process_code, pa.name;
--- SELECT p.process_code, p.title, c.name AS curso FROM projects p JOIN project_course_links pcl ON pcl.project_id = p.id JOIN courses c ON c.id = pcl.course_id WHERE p.process_code LIKE 'DEMO-SIEPA-%' ORDER BY p.process_code, c.name;
+-- SELECT id, process_code, title, status, is_active FROM projects WHERE process_code LIKE 'DEMO-PRISMA-%' ORDER BY id;
+-- SELECT p.process_code, p.title, pa.name AS area FROM projects p JOIN project_area_links pal ON pal.project_id = p.id JOIN project_areas pa ON pa.id = pal.area_id WHERE p.process_code LIKE 'DEMO-PRISMA-%' ORDER BY p.process_code, pa.name;
+-- SELECT p.process_code, p.title, c.name AS curso FROM projects p JOIN project_course_links pcl ON pcl.project_id = p.id JOIN courses c ON c.id = pcl.course_id WHERE p.process_code LIKE 'DEMO-PRISMA-%' ORDER BY p.process_code, c.name;
