@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 from fastapi.openapi.docs import get_swagger_ui_html
 from core.http.http_client import http_client
 from core.postgresql.postgresql import postgresql
-from core.rabbitmq.rabbitmq import rabbitmq
 from fastapi import FastAPI
 
 from core.redis.redis_cache import redis_cache
@@ -19,7 +18,6 @@ async def lifespan(app: FastAPI):
     print("Iniciando conexões...")
     await postgresql.connect()
     await redis_cache.connect()
-    await rabbitmq.connect()
     await http_client.connect()
     print("Todos os serviços conectados com sucesso!")
 
@@ -28,7 +26,6 @@ async def lifespan(app: FastAPI):
     print("Encerrando conexões...")
     await postgresql.disconnect()
     await redis_cache.disconnect()
-    await rabbitmq.disconnect()
     await http_client.disconnect()
     print("Todos os serviços desconectados com sucesso!")
 
@@ -52,7 +49,7 @@ app.include_router(projects_router, prefix="", tags=["projects"])
 async def custom_docs():
     return get_swagger_ui_html(
         openapi_url="/api/v1/unirio/openapi.json",
-        title="Documentação da API - Extensao Unirio",
+        title="Documentação da API - PRISMA UNIRIO",
     )
 
 

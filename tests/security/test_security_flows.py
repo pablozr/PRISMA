@@ -10,7 +10,7 @@ from fastapi import HTTPException
 os.environ.setdefault("DB_HOST", "localhost")
 os.environ.setdefault("DB_USER", "postgres")
 os.environ.setdefault("DB_PASSWORD", "postgres")
-os.environ.setdefault("DB_NAME", "siepa")
+os.environ.setdefault("DB_NAME", "prisma")
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client")
 
@@ -183,33 +183,6 @@ def test_verify_token_requires_valid_session_for_auth(monkeypatch: pytest.Monkey
     )
 
     assert result is False
-
-
-def test_verify_token_allows_reset_with_can_update_true_when_requested(monkeypatch: pytest.MonkeyPatch) -> None:
-    expected_user = {"id": 9, "role": "professor"}
-
-    monkeypatch.setattr(
-        security,
-        "decode_access_token",
-        lambda _token: {"type": "reset", "userId": 9, "canUpdate": True},
-    )
-    monkeypatch.setattr(
-        security.user_service,
-        "get_one_user",
-        AsyncMock(return_value={"status": True, "data": {"user": expected_user}}),
-    )
-
-    result = asyncio.run(
-        security.verify_token(
-            "token",
-            conn=object(),
-            redis_client=object(),
-            expected_type="reset",
-            check_can_update=True,
-        )
-    )
-
-    assert result == expected_user
 
 
 def test_validate_token_raises_when_cookie_missing() -> None:

@@ -1,15 +1,7 @@
 from typing import TypedDict
 
-from .auth import (
-    ForgetPasswordRequestModel,
-    RefreshTokenRequest,
-    UpdatePasswordRequest,
-    UserLoginRequest,
-    ValidateCodeRequest,
-)
+from .auth import RefreshTokenRequest, UserLoginRequest
 
-PasswordSendCodeRequest = ForgetPasswordRequestModel
-PasswordValidateCodeRequest = ValidateCodeRequest
 AuthLoginRequest = UserLoginRequest
 AuthRefreshRequest = RefreshTokenRequest
 

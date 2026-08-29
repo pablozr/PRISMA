@@ -35,22 +35,6 @@ async def get_active_user_with_password_by_email(conn: asyncpg.Connection, email
     return {**row} if row else None
 
 
-async def get_active_user_for_password_reset(conn: asyncpg.Connection, email: str) -> dict | None:
-    query = """
-            SELECT id,
-                   full_name,
-                   institutional_email,
-                   role
-            FROM users
-            WHERE institutional_email = $1
-              AND is_active = TRUE
-            LIMIT 1;
-            """
-
-    row = await conn.fetchrow(query, email)
-    return {**row} if row else None
-
-
 async def get_active_user_by_id(conn: asyncpg.Connection, user_id: int) -> dict | None:
     query = """
             SELECT id,
@@ -81,27 +65,6 @@ async def create_google_default_user(conn: asyncpg.Connection, email: str, full_
     if row:
         return {**row}
     return await get_active_user_by_email(conn, email)
-
-
-async def update_user_password(conn: asyncpg.Connection, user_id: int, password_hash: str) -> dict | None:
-    query = """
-            UPDATE users
-            SET password_hash = $1,
-                updated_at = NOW()
-            WHERE id = $2
-              AND is_active = TRUE
-            RETURNING
-                id,
-                institutional_email,
-                full_name,
-                role,
-                is_active,
-                created_at,
-                updated_at;
-            """
-
-    row = await conn.fetchrow(query, password_hash, user_id)
-    return {**row} if row else None
 
 
 async def count_users(conn: asyncpg.Connection, q: str | None) -> int:

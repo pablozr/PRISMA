@@ -39,19 +39,3 @@ LOGIN_RATE_LIMIT_DEPS = [
         )
     )
 ]
-FORGET_PASSWORD_RATE_LIMIT_DEPS = [
-    Depends(
-        rate_limiter(
-            settings.RATE_LIMIT_FORGET_PASSWORD_MAX_REQUESTS,
-            settings.RATE_LIMIT_FORGET_PASSWORD_WINDOW_SECONDS,
-        )
-    )
-]
-VALIDATE_CODE_RATE_LIMIT_DEPS = [
-    Depends(
-        rate_limiter(
-            settings.RATE_LIMIT_VALIDATE_CODE_MAX_REQUESTS,
-            settings.RATE_LIMIT_VALIDATE_CODE_WINDOW_SECONDS,
-        )
-    )
-]

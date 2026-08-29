@@ -8,7 +8,7 @@ from fastapi import Depends, HTTPException, Request
 from services.cache import cache_service
 
 from core.config.config import settings, COOKIE_AUTH_REFRESH
-from core.config.config import COOKIE_AUTH, COOKIE_AUTH_RESET, ROLE_RANK_BY_NAME
+from core.config.config import COOKIE_AUTH, ROLE_RANK_BY_NAME
 from core.logger.logger import logger
 from core.postgresql.postgresql import postgresql
 from core.redis.redis_cache import redis_cache
@@ -37,7 +37,6 @@ async def verify_token(
         token: str,
         conn: asyncpg.Connection,
         redis_client: redis.Redis,
-        check_can_update: bool = False,
         expected_type: str = "auth",
 ) -> dict | bool | None:
     try:
@@ -49,10 +48,6 @@ async def verify_token(
         if payload.get("type") != expected_type:
             raise jwt.InvalidTokenError("Tipo de token divergente")
 
-        if expected_type == "reset" and not check_can_update:
-            if payload.get("canUpdate") is not False:
-                raise jwt.InvalidTokenError("Etapa de token de redefinicao invalida")
-
         if not payload.get("userId"):
             raise jwt.InvalidTokenError("Payload de token invalido")
 
@@ -60,11 +55,6 @@ async def verify_token(
 
         if response["status"] is None or not response["status"]:
             raise jwt.InvalidSignatureError("Usuario nao encontrado")
-
-        if check_can_update:
-            if payload.get("canUpdate"):
-                return dict(response["data"]["user"])
-            raise jwt.InvalidTokenError("Usuario sem permissao para atualizar")
 
         requires_session = expected_type in ("auth", "refresh")
 
@@ -89,17 +79,11 @@ async def validate_token(
         request: Request,
         conn: asyncpg.Connection,
         redis_client: redis.Redis,
-        check_can_update: bool = False,
-        reset_cookie: bool = False,
         refresh_cookie: bool = False,
         expected_type: str = "auth",
 ) -> dict:
     try:
-        cookie_key = (
-            COOKIE_AUTH_RESET
-            if reset_cookie
-            else COOKIE_AUTH_REFRESH if refresh_cookie else COOKIE_AUTH
-        )
+        cookie_key = COOKIE_AUTH_REFRESH if refresh_cookie else COOKIE_AUTH
         token = request.cookies.get(cookie_key)
 
         if not token:
@@ -108,7 +92,6 @@ async def validate_token(
         user = await verify_token(
             token,
             conn=conn,
-            check_can_update=check_can_update,
             expected_type=expected_type,
             redis_client=redis_client,
         )
@@ -130,38 +113,6 @@ async def validate_token(
         raise HTTPException(status_code=401, detail="Token invalido")
 
 
-async def validate_token_to_update_password(
-        request: Request,
-        conn: asyncpg.Connection = Depends(postgresql.get_db),
-        redis_client: redis.Redis = Depends(redis_cache.get_redis),
-) -> dict:
-    return await validate_token(
-        request,
-        conn,
-        check_can_update=True,
-        reset_cookie=True,
-        refresh_cookie=False,
-        expected_type="reset",
-        redis_client=redis_client,
-    )
-
-
-async def validate_token_to_validate_code(
-        request: Request,
-        conn: asyncpg.Connection = Depends(postgresql.get_db),
-        redis_client: redis.Redis = Depends(redis_cache.get_redis),
-) -> dict:
-    return await validate_token(
-        request,
-        conn,
-        check_can_update=False,
-        reset_cookie=True,
-        refresh_cookie=False,
-        expected_type="reset",
-        redis_client=redis_client,
-    )
-
-
 async def validate_token_refresh(
         request: Request,
         conn: asyncpg.Connection = Depends(postgresql.get_db),
@@ -170,8 +121,6 @@ async def validate_token_refresh(
     return await validate_token(
         request,
         conn,
-        check_can_update=False,
-        reset_cookie=False,
         refresh_cookie=True,
         expected_type="refresh",
         redis_client=redis_client,

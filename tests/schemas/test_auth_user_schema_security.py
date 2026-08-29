@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from schemas.auth.auth import UpdatePasswordRequest, UserLoginRequest, ValidateCodeRequest
+from schemas.auth.auth import UserLoginRequest
 from schemas.user.user import UserStatusUpdateRequest, validate_google_sub
 
 
@@ -26,17 +26,6 @@ def test_login_request_rejects_unknown_fields() -> None:
                 "unexpected": "field",
             }
         )
-
-
-def test_validate_code_accepts_legacy_codigo_alias() -> None:
-    payload = ValidateCodeRequest.model_validate({"codigo": "123456"})
-
-    assert payload.code == "123456"
-
-
-def test_update_password_requires_special_character() -> None:
-    with pytest.raises(ValidationError):
-        UpdatePasswordRequest.model_validate({"password": "Senha1234"})
 
 
 def test_user_status_update_accepts_habilitado_alias() -> None:

@@ -1,20 +1,12 @@
 import secrets
 from datetime import timedelta
-from pathlib import Path
 
-import aio_pika
 import asyncpg
 import redis
 
-from core.config.config import (
-    EMAIL_FROM,
-    EMAIL_QUEUE,
-    RESET_CODE_REDIS_TTL_SECONDS,
-    RESET_COOKIE_MAX_AGE,
-    settings,
-)
+from core.config.config import settings
 from core.logger.logger import logger
-from core.security.hashing import verify_password, hash_password
+from core.security.hashing import verify_password
 from core.security.security import create_token, decode_access_token
 from functions.utils.utils import build_login_success_response, extract_user_identity, service_response
 from repositories.people.people_repository import (
@@ -23,20 +15,10 @@ from repositories.people.people_repository import (
     link_existing_user_to_person,
 )
 from repositories.user.user_repository import create_google_default_user, get_active_user_by_email, get_active_user_by_id
-from repositories.user.user_repository import (
-    get_active_user_for_password_reset,
-    get_active_user_with_password_by_email,
-    update_user_password,
-)
-from schemas.auth.auth import (
-    ForgetPasswordRequestModel,
-    UpdatePasswordRequest,
-    UserLoginRequest,
-    ValidateCodeRequest,
-)
+from repositories.user.user_repository import get_active_user_with_password_by_email
+from schemas.auth.auth import UserLoginRequest
 from integrations.google_oauth_client import google_oauth_client
 from services.cache import cache_service
-from services.queue import queue_service
 
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
 
@@ -135,8 +117,6 @@ async def login(conn: asyncpg.Connection, redis_client: redis.Redis, login_data:
     except Exception as e:
         logger.exception(e)
         return service_response(status=False, message="Erro interno")
-
-
 async def logout(redis_client: redis.Redis, session_id: str | None) -> dict:
     try:
         await cache_service.delete_by_key(f"session:{session_id}", redis_client)
@@ -144,8 +124,6 @@ async def logout(redis_client: redis.Redis, session_id: str | None) -> dict:
     except Exception as e:
         logger.exception(e)
         return service_response(status=False, message="Erro interno")
-
-
 async def refresh_token(conn: asyncpg.Connection, redis_client: redis.Redis, refresh_token: str) -> dict:
     try:
         if not refresh_token:
@@ -248,144 +226,6 @@ async def google_oauth_callback(
     except ValueError as e:
         logger.error(str(e))
         return service_response(status=False, message=str(e))
-    except Exception as e:
-        logger.exception(e)
-        return service_response(status=False, message="Erro interno")
-
-
-async def forget_password(
-        conn: asyncpg.Connection,
-        redis_client,
-        channel: aio_pika.abc.AbstractChannel,
-        data: ForgetPasswordRequestModel,
-) -> dict:
-    try:
-        row = await get_active_user_for_password_reset(conn, data.email)
-
-        if not row:
-            return service_response(status=False, message="Usuario nao encontrado")
-
-        code = f"{secrets.randbelow(1_000_000):06d}"
-        cache_key = f"{row['id']}:{row['institutional_email']}"
-
-        await cache_service.set_by_key(
-            key=cache_key,
-            ttl_seconds=RESET_CODE_REDIS_TTL_SECONDS,
-            value={"code": code},
-            redis_client=redis_client,
-        )
-
-        template_path = Path(__file__).resolve().parents[2] / "templates" / "reset_password_email.html"
-        html = template_path.read_text(encoding="utf-8").replace("CODE_HERE", code)
-
-        await queue_service.publish(
-            EMAIL_QUEUE,
-            {
-                "to": data.email,
-                "from": EMAIL_FROM,
-                "subject": "Codigo para redefinicao de senha",
-                "html": html,
-                "message": "",
-                "base64Attachment": "",
-                "base64AttachmentName": "",
-            },
-            channel,
-        )
-
-        reset_payload = {
-            "userId": row["id"],
-            "email": row["institutional_email"],
-            "fullname": row["full_name"],
-            "role": row["role"],
-            "canUpdate": False,
-            "type": "reset",
-        }
-        token = create_token(
-            reset_payload, expires_delta=timedelta(seconds=RESET_COOKIE_MAX_AGE)
-        )
-
-        return service_response(
-            status=True,
-            message="Codigo de verificacao enviado",
-            data={"access_token": token},
-        )
-    except Exception as e:
-        logger.exception(e)
-        return service_response(status=False, message="Erro interno")
-
-
-async def validate_reset_code(
-        redis_client, user: dict, data: ValidateCodeRequest
-) -> dict:
-    try:
-        user_id = user.get("userId") or user.get("id")
-        email = user.get("email") or user.get("institutional_email")
-        role = user.get("role")
-
-        if user_id is None or not email or not role:
-            return service_response(status=False, message="Token invalido")
-
-        full_name = user.get("fullname") or user.get("full_name") or email.split("@")[0]
-        cache_key = f"{user_id}:{email}"
-        redis_data = await cache_service.get_by_key(cache_key, redis_client)
-
-        if not redis_data or redis_data.get("code") != data.code:
-            return service_response(status=False, message="Codigo invalido ou expirado")
-
-        await cache_service.delete_by_key(cache_key, redis_client)
-
-        reset_payload = {
-            "userId": int(user_id),
-            "email": str(email),
-            "fullname": str(full_name),
-            "role": str(role),
-            "canUpdate": True,
-            "type": "reset",
-        }
-        token = create_token(
-            reset_payload, expires_delta=timedelta(seconds=RESET_COOKIE_MAX_AGE)
-        )
-
-        return service_response(
-            status=True,
-            message="Codigo validado com sucesso",
-            data={"access_token": token},
-        )
-    except Exception as e:
-        logger.exception(e)
-        return service_response(status=False, message="Erro interno")
-
-
-async def update_password_after_reset(
-        conn: asyncpg.Connection, user: dict, data: UpdatePasswordRequest
-) -> dict:
-    try:
-        user_id = user.get("userId") or user.get("id")
-        if user_id is None:
-            return service_response(status=False, message="Token invalido")
-
-        hashed = hash_password(data.password)
-
-        row = await update_user_password(conn, int(user_id), hashed)
-
-        if not row:
-            return service_response(status=False, message="Usuario nao encontrado")
-
-        return service_response(
-            status=True,
-            message="Senha atualizada com sucesso",
-            data={
-                "user": {
-                    "id": row["id"],
-                    "institutional_email": row["institutional_email"],
-                    "full_name": row["full_name"],
-                    "role": row["role"],
-                    "is_active": row["is_active"],
-                    "created_at": row["created_at"],
-                    "updated_at": row["updated_at"],
-                }
-            },
-        )
     except Exception as e:
         logger.exception(e)
         return service_response(status=False, message="Erro interno")

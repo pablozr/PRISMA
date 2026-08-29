@@ -19,11 +19,6 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str | None = None
 
-    RABBITMQ_HOST: str = "localhost"
-    RABBITMQ_PORT: int = 5672
-    RABBITMQ_USER: str = "guest"
-    RABBITMQ_PASSWORD: str = "guest"
-
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
@@ -51,7 +46,6 @@ class Settings(BaseSettings):
 
     COOKIE_AUTH: str = "auth"
     COOKIE_AUTH_REFRESH: str = "refresh"
-    COOKIE_AUTH_RESET: str = "reset"
 
     ROLE_RANK_BY_NAME: dict[str, int] = Field(
         default_factory=lambda: {
@@ -63,19 +57,9 @@ class Settings(BaseSettings):
 
     ALLOWED_EMAIL_DOMAIN: str = "edu.unirio.br"
 
-    EMAIL_FROM: str = "no-reply@edu.unirio.br"
-    EMAIL_QUEUE: str = "email_dispatch"
-
-    RESET_CODE_REDIS_TTL_SECONDS: int = 300
-    RESET_COOKIE_MAX_AGE: int = 900
-
     RATE_LIMIT_KEY_PREFIX: str = "rate_limit"
     RATE_LIMIT_LOGIN_MAX_REQUESTS: int = 5
     RATE_LIMIT_LOGIN_WINDOW_SECONDS: int = 60
-    RATE_LIMIT_FORGET_PASSWORD_MAX_REQUESTS: int = 3
-    RATE_LIMIT_FORGET_PASSWORD_WINDOW_SECONDS: int = 300
-    RATE_LIMIT_VALIDATE_CODE_MAX_REQUESTS: int = 5
-    RATE_LIMIT_VALIDATE_CODE_WINDOW_SECONDS: int = 300
 
     PROJECTS_SORT_TITULO_ASC: str = "titulo_asc"
     PROJECTS_SORT_TITULO_DESC: str = "titulo_desc"
@@ -93,7 +77,7 @@ class Settings(BaseSettings):
     PROJECT_COVER_UPLOAD_DIR: str = Field(
         default_factory=lambda: str(
             Path(__file__).resolve().parents[3]
-            / "siepa-front"
+            / "prisma-front"
             / "src"
             / "assets"
             / "project-covers"
@@ -110,23 +94,13 @@ settings = Settings()
 # Backward-compatible aliases for modules still importing constants directly.
 COOKIE_AUTH = settings.COOKIE_AUTH
 COOKIE_AUTH_REFRESH = settings.COOKIE_AUTH_REFRESH
-COOKIE_AUTH_RESET = settings.COOKIE_AUTH_RESET
 ROLE_RANK_BY_NAME = settings.ROLE_RANK_BY_NAME
 
 ALLOWED_EMAIL_DOMAIN = settings.ALLOWED_EMAIL_DOMAIN
-EMAIL_FROM = settings.EMAIL_FROM
-EMAIL_QUEUE = settings.EMAIL_QUEUE
-
-RESET_CODE_REDIS_TTL_SECONDS = settings.RESET_CODE_REDIS_TTL_SECONDS
-RESET_COOKIE_MAX_AGE = settings.RESET_COOKIE_MAX_AGE
 
 RATE_LIMIT_KEY_PREFIX = settings.RATE_LIMIT_KEY_PREFIX
 RATE_LIMIT_LOGIN_MAX_REQUESTS = settings.RATE_LIMIT_LOGIN_MAX_REQUESTS
 RATE_LIMIT_LOGIN_WINDOW_SECONDS = settings.RATE_LIMIT_LOGIN_WINDOW_SECONDS
-RATE_LIMIT_FORGET_PASSWORD_MAX_REQUESTS = settings.RATE_LIMIT_FORGET_PASSWORD_MAX_REQUESTS
-RATE_LIMIT_FORGET_PASSWORD_WINDOW_SECONDS = settings.RATE_LIMIT_FORGET_PASSWORD_WINDOW_SECONDS
-RATE_LIMIT_VALIDATE_CODE_MAX_REQUESTS = settings.RATE_LIMIT_VALIDATE_CODE_MAX_REQUESTS
-RATE_LIMIT_VALIDATE_CODE_WINDOW_SECONDS = settings.RATE_LIMIT_VALIDATE_CODE_WINDOW_SECONDS
 
 PROJECTS_DEFAULT_SORT = settings.PROJECTS_DEFAULT_SORT
 PROJECTS_ALLOWED_SORT_OPTIONS = settings.PROJECTS_ALLOWED_SORT_OPTIONS
