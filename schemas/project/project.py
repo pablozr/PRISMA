@@ -27,6 +27,7 @@ class ProjectData(TypedDict):
     sie_project_id: int
     process_code: Optional[str]
     title: str
+    contacts: list[dict]
     institutional: dict
     editorial: dict
     opportunities: list[dict]

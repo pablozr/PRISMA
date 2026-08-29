@@ -51,6 +51,19 @@ def _project_contract_columns(include_opportunities: bool = True) -> str:
         ), '[]'::jsonb) AS opportunities,""" if include_opportunities else ""
     return f"""
         p.id, p.sie_project_id, p.process_code, p.title,
+        COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'full_name', person.full_name,
+            'institutional_email', person.institutional_email,
+            'role', person.profile
+          ) ORDER BY person.full_name, person.id)
+          FROM project_participations participation
+          JOIN people person ON person.id=participation.person_id
+          WHERE participation.project_id=p.id
+            AND participation.is_active=TRUE
+            AND LOWER(participation.participant_function)='coordenador'
+            AND person.institutional_email IS NOT NULL
+        ), '[]'::jsonb) AS contacts,
         jsonb_build_object(
           'summary', p.source_summary,
           'type', p.source_type,
@@ -144,6 +157,7 @@ async def get_public_projects(
             {
                 "institutional": {},
                 "editorial": {},
+                "contacts": [],
                 "opportunities": [],
             },
         )
@@ -168,6 +182,7 @@ async def get_public_project_by_id(conn: asyncpg.Connection, project_id: int) ->
         {
             "institutional": {},
             "editorial": {},
+            "contacts": [],
             "opportunities": [],
         },
     ) if row else None
