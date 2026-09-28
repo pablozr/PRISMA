@@ -199,6 +199,44 @@ docker compose --env-file .env.prod \
 
 ## 7. Comandos do dia a dia
 
+### Deploy automático por GitHub Actions
+
+Depois da configuração inicial, pushes em `main` só chegam à VPS após o CI do
+respectivo repositório passar. O backend roda os testes Python; o frontend gera
+o bundle de produção. Cada workflow usa uma chave SSH própria do deploy, com
+comando forçado. A VPS usa `flock` para serializar os deploys dos dois
+repositórios. O `.env.prod` permanece somente na VPS; **não** é enviado ao
+GitHub Actions.
+
+O comando forçado instalado em `/usr/local/sbin/prisma-deploy-ssh` aceita apenas
+`backend` ou `frontend`. Ele atualiza apenas o checkout correspondente e chama
+`scripts/deploy-production.sh` do backend. Em deploys do backend, o script faz
+backup do PostgreSQL e das capas, aplica as migrações e recria API/worker. Em
+deploys do frontend, recria somente `prisma-web`. Os backups ficam em
+`/opt/prisma-app/backups`; monitore o espaço em disco e copie backups para fora
+da VPS periodicamente.
+
+Configuração única da chave SSH:
+
+1. Gere uma chave Ed25519 dedicada ao deploy, sem frase secreta, e guarde a
+   chave privada fora dos repositórios.
+2. Na VPS, instale `scripts/prisma-deploy-ssh` em
+   `/usr/local/sbin/prisma-deploy-ssh` com permissão `755`.
+3. Adicione a chave pública a `/root/.ssh/authorized_keys` com o prefixo
+   `command="/usr/local/sbin/prisma-deploy-ssh",restrict`. A chave não abre um
+   shell genérico, não aceita port forwarding e só executa o comando forçado.
+4. Em **cada** repositório GitHub, configure `DEPLOY_SSH_KEY` e
+   `DEPLOY_KNOWN_HOSTS` como Actions secrets e `DEPLOY_HOST` (IPv4 da VPS) como
+   Actions variable. O host key deve ser conferido contra o conhecido na
+   máquina local antes de cadastrar.
+5. Verifique `ssh -i <chave> root@<IP> frontend` e `... backend` somente depois
+   de instalar o comando forçado. O workflow também testa a URL pública após o
+   deploy.
+
+Para disparar novamente sem novo commit, use `Actions → Deploy production → Run
+workflow` no repositório correspondente. O arquivo `docker-compose.prod.caddy.yml`
+continua obrigatório na VPS; a automação não altera o Caddyfile.
+
 ### Hostinger VPS com Caddy existente
 
 Se o servidor já executa o projeto `caddy` e sua rede externa é

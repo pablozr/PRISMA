@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Install outside the checkout as /usr/local/sbin/prisma-deploy-ssh and use as
+# the forced command on the GitHub Actions SSH public key.
+set -euo pipefail
+
+target="${SSH_ORIGINAL_COMMAND:-}"
+case "$target" in
+  backend|frontend) ;;
+  *) echo "Unsupported deploy target" >&2; exit 64 ;;
+esac
+
+# Workflows in the two repositories have separate concurrency groups, so the
+# VPS lock is the shared serialization point.
+exec 9>/var/lock/prisma-deploy.lock
+flock -w 1800 9
+
+case "$target" in
+  backend)
+    git -C /opt/prisma-app/PRISMA pull --ff-only origin main
+    ;;
+  frontend)
+    git -C /opt/prisma-app/prisma-front pull --ff-only origin main
+    ;;
+esac
+
+exec bash /opt/prisma-app/PRISMA/scripts/deploy-production.sh "$target"
