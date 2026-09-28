@@ -203,7 +203,7 @@ docker compose --env-file .env.prod \
 
 Depois da configuração inicial, pushes em `main` só chegam à VPS após o CI do
 respectivo repositório passar. O backend roda os testes Python; o frontend gera
-o bundle de produção. Cada workflow usa uma chave SSH própria do deploy, com
+o bundle de produção e roda os testes unitários. Cada workflow usa uma chave SSH dedicada ao deploy, com
 comando forçado. A VPS usa `flock` para serializar os deploys dos dois
 repositórios. O `.env.prod` permanece somente na VPS; **não** é enviado ao
 GitHub Actions.
