@@ -15,7 +15,6 @@ services:
       DB_NAME: ${DB_NAME}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
       SECRET_KEY: ${SECRET_KEY}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
@@ -26,6 +25,8 @@ services:
     ports:
       - "${API_PORT}:${API_PORT}"
     volumes:
+      # Dev-only: bind direto nos assets do frontend para o `npm start` no host
+      # continuar servindo as capas recem-enviadas. Producao usa volume nomeado.
       - ../prisma-front/src/assets/project-covers:/app/project-covers
     depends_on:
       postgres:
@@ -35,7 +36,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen(f\"http://localhost:{os.getenv('API_PORT', '5685')}/api/v1/unirio/docs\")"]
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen(f\"http://localhost:{os.getenv('API_PORT', '5685')}/health\")"]
       interval: 30s
       timeout: 10s
       retries: 5

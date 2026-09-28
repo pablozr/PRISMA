@@ -11,6 +11,8 @@ __pycache__
 *.sqlite3
 .env
 .env.*
+backups/
+project-covers/
 
 tests
 test_main.http

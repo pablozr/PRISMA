@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,6 +8,10 @@ class Settings(BaseSettings):
 
     ENVIRONMENT: str = "development"
     API_PORT: int = 8000
+
+    # CSV de origens permitidas para CORS. Vazio usa o padrao local em
+    # desenvolvimento e nenhuma origem em producao. Nunca use "*" com credenciais.
+    CORS_ALLOWED_ORIGINS: str = ""
 
     DB_HOST: str
     DB_PORT: int = 5432
@@ -76,17 +80,30 @@ class Settings(BaseSettings):
     PROJECTS_DEFAULT_ONLY_ENABLED: bool = True
     PROJECT_COVER_UPLOAD_DIR: str = Field(
         default_factory=lambda: str(
-            Path(__file__).resolve().parents[3]
-            / "prisma-front"
-            / "src"
-            / "assets"
-            / "project-covers"
+            Path(__file__).resolve().parents[2] / "project-covers"
         )
     )
     PROJECT_COVER_PUBLIC_PATH: str = "assets/project-covers"
     PROJECT_COVER_MAX_BYTES: int = 5 * 1024 * 1024
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8-sig", extra="ignore")
+
+    @field_validator("CORS_ALLOWED_ORIGINS")
+    @classmethod
+    def _reject_cors_wildcard(cls, value: str) -> str:
+        origins = [origin.strip() for origin in value.split(",") if origin.strip()]
+        if "*" in origins:
+            raise ValueError("CORS_ALLOWED_ORIGINS must not contain '*' because credentials are enabled")
+        return value
+
+    @property
+    def cors_allowed_origins(self) -> list[str]:
+        configured = [origin.strip() for origin in self.CORS_ALLOWED_ORIGINS.split(",") if origin.strip()]
+        if configured:
+            return configured
+        if self.ENVIRONMENT == "production":
+            return []
+        return ["http://localhost:4200"]
 
 
 settings = Settings()

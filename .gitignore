@@ -4,6 +4,16 @@
 .env.*.local
 .venv
 
+# Production environment files: never commit secrets
+.env.prod
+.env.production
+
+# Local uploaded project covers (backend-owned storage)
+project-covers/
+
+# Local database/volume backups
+backups/
+
 # Ignore IDE configuration files
 .idea/
 

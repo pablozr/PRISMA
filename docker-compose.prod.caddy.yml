@@ -1,0 +1,12 @@
+# Use the existing Caddy reverse proxy on the Hostinger VPS.
+# Run alongside docker-compose.prod.yml. Caddy owns host ports 80 and 443.
+services:
+  prisma-web:
+    ports: !override []
+    networks:
+      - caddy
+
+networks:
+  caddy:
+    external: true
+    name: caddy_default_network

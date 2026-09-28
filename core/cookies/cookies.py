@@ -1,14 +1,16 @@
 from starlette.responses import JSONResponse, RedirectResponse
 
-from core.config.config import COOKIE_AUTH, COOKIE_AUTH_REFRESH
+from core.config.config import COOKIE_AUTH, COOKIE_AUTH_REFRESH, settings
 
 
 def set_auth_cookies(resp: JSONResponse | RedirectResponse, access_token: str, refresh_token: str, session_id: str | None = None) -> None:
+    secure = settings.ENVIRONMENT == "production"
+
     resp.set_cookie(
         key=COOKIE_AUTH,
         value=access_token,
         httponly=True,
-        secure=True,
+        secure=secure,
         samesite="lax",
         path="/",
         max_age=900,
@@ -18,7 +20,7 @@ def set_auth_cookies(resp: JSONResponse | RedirectResponse, access_token: str, r
         key=COOKIE_AUTH_REFRESH,
         value=refresh_token,
         httponly=True,
-        secure=True,
+        secure=secure,
         samesite="lax",
         path="/",
         max_age=604800,
@@ -29,7 +31,7 @@ def set_auth_cookies(resp: JSONResponse | RedirectResponse, access_token: str, r
             key="session_id",
             value=session_id,
             httponly=True,
-            secure=True,
+            secure=secure,
             samesite="lax",
             path="/",
             max_age=604800,

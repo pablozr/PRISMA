@@ -1,0 +1,23 @@
+# Optional HTTPS override for the PRISMA production stack.
+#
+# Apply only AFTER a certificate exists for ${DOMAIN} (see DEPLOY.md). This
+# file replaces the HTTP-only nginx site with the TLS template, mounts the
+# host certificates read-only and publishes both 80 (redirect) and 443.
+#
+# Usage:
+#   docker compose --env-file .env.prod \
+#     -f docker-compose.prod.yml \
+#     -f docker-compose.prod.https.yml up -d --build
+#
+# Requires DOMAIN to be set, e.g. DOMAIN=prisma.unirio.br
+services:
+  prisma-web:
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is required}
+    # !override replaces the base list so port 80 is not published twice.
+    ports: !override
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../prisma-front/nginx/https.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
