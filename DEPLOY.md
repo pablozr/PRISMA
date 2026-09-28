@@ -220,9 +220,10 @@ Configuração única da chave SSH:
 
 1. Gere uma chave Ed25519 dedicada ao deploy, sem frase secreta, e guarde a
    chave privada fora dos repositórios.
-2. Na VPS, instale `scripts/prisma-deploy-ssh` em
-   `/usr/local/sbin/prisma-deploy-ssh` com permissão `755`.
-3. Adicione a chave pública a `/root/.ssh/authorized_keys` com o prefixo
+2. Na VPS, após `git pull --ff-only`, execute
+   `bash /opt/prisma-app/PRISMA/scripts/install-deploy-access.sh`. O script
+   instala `prisma-deploy-ssh` em `/usr/local/sbin` e adiciona a chave pública
+   a `/root/.ssh/authorized_keys` com o prefixo
    `command="/usr/local/sbin/prisma-deploy-ssh",restrict`. A chave não abre um
    shell genérico, não aceita port forwarding e só executa o comando forçado.
 4. Em **cada** repositório GitHub, configure `DEPLOY_SSH_KEY` e
