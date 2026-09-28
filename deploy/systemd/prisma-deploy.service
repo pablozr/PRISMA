@@ -1,0 +1,11 @@
+[Unit]
+Description=Check CI and deploy PRISMA updates
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/prisma-app/PRISMA
+ExecStart=/usr/bin/python3 /opt/prisma-app/PRISMA/scripts/poll-production.py
+TimeoutStartSec=30min

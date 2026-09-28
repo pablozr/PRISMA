@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Called by the VPS's restricted SSH deploy command after it updates one repo.
+# Called by the VPS deploy poller after CI passes for one repository.
 set -euo pipefail
 
 target="${1:-}"

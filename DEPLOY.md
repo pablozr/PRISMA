@@ -199,44 +199,45 @@ docker compose --env-file .env.prod \
 
 ## 7. Comandos do dia a dia
 
-### Deploy automático por GitHub Actions
+### Deploy automático após CI
 
-Depois da configuração inicial, pushes em `main` só chegam à VPS após o CI do
-respectivo repositório passar. O backend roda os testes Python; o frontend gera
-o bundle de produção e roda os testes unitários. Cada workflow usa uma chave SSH dedicada ao deploy, com
-comando forçado. A VPS usa `flock` para serializar os deploys dos dois
-repositórios. O `.env.prod` permanece somente na VPS; **não** é enviado ao
-GitHub Actions.
+O CI do backend roda os testes Python. O CI do frontend gera o bundle de
+produção e roda os testes unitários. A VPS consulta o commit mais recente de
+`main` e o resultado do CI correspondente a cada cinco minutos. Só atualiza o
+repositório e recria os serviços se o CI desse commit passou. A VPS faz as
+conexões de saída para o GitHub; nenhuma porta SSH precisa ser aberta aos
+runners do GitHub Actions. O `.env.prod` fica somente na VPS.
 
-O comando forçado instalado em `/usr/local/sbin/prisma-deploy-ssh` aceita apenas
-`backend` ou `frontend`. Ele atualiza apenas o checkout correspondente e chama
-`scripts/deploy-production.sh` do backend. Em deploys do backend, o script faz
-backup do PostgreSQL e das capas, aplica as migrações e recria API/worker. Em
-deploys do frontend, recria somente `prisma-web`. Os backups ficam em
+Instalação única, como root na VPS após atualizar os dois checkouts:
+
+```sh
+git -C /opt/prisma-app/PRISMA pull --ff-only origin main
+git -C /opt/prisma-app/prisma-front pull --ff-only origin main
+bash /opt/prisma-app/PRISMA/scripts/install-polling-deploy.sh
+systemctl start prisma-deploy.service
+journalctl -u prisma-deploy.service -n 80 --no-pager
+```
+
+O timer `prisma-deploy.timer` chama `scripts/poll-production.py`. Um lock na VPS
+evita sobreposição. O estado de cada serviço fica em
+`/opt/prisma-app/.deploy-state`. Em deploys do backend, o script faz backup do
+PostgreSQL e das capas, aplica as migrações e recria API/worker. Em deploys do
+frontend, recria somente `prisma-web`. Os backups ficam em
 `/opt/prisma-app/backups`; monitore o espaço em disco e copie backups para fora
-da VPS periodicamente.
+da VPS periodicamente. Se a verificação pública falhar após o build, o timer
+repete somente essa verificação até que o site volte a responder.
 
-Configuração única da chave SSH:
+Para consultar o agendamento e os últimos resultados:
 
-1. Gere uma chave Ed25519 dedicada ao deploy, sem frase secreta, e guarde a
-   chave privada fora dos repositórios.
-2. Na VPS, após `git pull --ff-only`, execute
-   `bash /opt/prisma-app/PRISMA/scripts/install-deploy-access.sh`. O script
-   instala `prisma-deploy-ssh` em `/usr/local/sbin` e adiciona a chave pública
-   a `/root/.ssh/authorized_keys` com o prefixo
-   `command="/usr/local/sbin/prisma-deploy-ssh",restrict`. A chave não abre um
-   shell genérico, não aceita port forwarding e só executa o comando forçado.
-4. Em **cada** repositório GitHub, configure `DEPLOY_SSH_KEY` e
-   `DEPLOY_KNOWN_HOSTS` como Actions secrets e `DEPLOY_HOST` (IPv4 da VPS) como
-   Actions variable. O host key deve ser conferido contra o conhecido na
-   máquina local antes de cadastrar.
-5. Verifique `ssh -i <chave> root@<IP> frontend` e `... backend` somente depois
-   de instalar o comando forçado. O workflow também testa a URL pública após o
-   deploy.
+```sh
+systemctl list-timers prisma-deploy.timer --no-pager
+systemctl status prisma-deploy.service --no-pager
+journalctl -u prisma-deploy.service -n 80 --no-pager
+```
 
-Para disparar novamente sem novo commit, use `Actions → Deploy production → Run
-workflow` no repositório correspondente. O arquivo `docker-compose.prod.caddy.yml`
-continua obrigatório na VPS; a automação não altera o Caddyfile.
+Para pedir uma atualização imediatamente, rode `systemctl start
+prisma-deploy.service`. O arquivo `docker-compose.prod.caddy.yml` continua
+obrigatório na VPS; a automação não altera o Caddyfile.
 
 ### Hostinger VPS com Caddy existente
 
@@ -275,11 +276,11 @@ prisma.projetosccetunirio.com.br {
 }
 ```
 
-Valide e recarregue o Caddy após editar o arquivo montado no container:
+Nesta VPS o Caddy usa `admin off`, então valide e reinicie após editar o arquivo:
 
 ```sh
 docker exec caddy-caddy-1 caddy validate --config /etc/caddy/Caddyfile
-docker exec caddy-caddy-1 caddy reload --config /etc/caddy/Caddyfile
+docker restart caddy-caddy-1
 ```
 
 Não aplique `docker-compose.prod.https.yml` nesse servidor, pois ele tentaria
